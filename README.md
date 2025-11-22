@@ -17,14 +17,22 @@
 
 - Linux 5.0 以上（对应 Ubuntu 20 以上）
 - Python 3.12 以上
-- GCC 8 以上
-- libseccomp-dev 2.5.0 以上
+- GNU GCC 8 以上
+- GNU Make 3.81 以上
+- libseccomp 2.5.0 以上，需要开发包
 
 建议全部更新到可以更新的最新版本。
 
 ### 搭建 Python 环境
 
 以下命令如果无特殊说明，均在安装目录下执行。
+
+检查 Python 版本：
+
+```sh
+python3 --version
+# 要求 3.12 以上
+```
 
 使用如下命令创建 venv：
 
@@ -44,15 +52,45 @@ source .venv/bin/activate
 pip3 install -r requirements.txt
 ```
 
+如果你所在的地区直接访问 PyPI 不稳定，可以尝试使用镜像，例如：
+
+```sh
+pip3 install -r requirements.txt -i https://mirror.tuna.tsinghua.edu.cn/pypi/web/simple
+```
+
 这样就准备好了 Python 环境。
 
 ### 编译沙箱
 
 沙箱基于 seccomp-bpf。
 
-在 lib 目录下执行命令 make 即可使用 gcc 编译沙箱，其它编译器请自行研究。
+检查 GCC 和 Make 版本：
 
-你可能需要修改 Makefile 中 `COMPILER = ...` 一行，使得它与你使用的编译器匹配。
+```sh
+g++ --version
+make --version
+```
+
+安装 libseccomp，以 Ubuntu 为例：
+
+```sh
+# 运行时依赖
+sudo apt install libseccomp2
+# 构建依赖
+sudo apt install libseccomp-dev
+```
+
+切换到 lib 目录，执行：
+
+```sh
+make
+```
+
+即可编译沙箱。
+
+如果你使用其它编译器，请自行研究。
+
+你可能需要修改 lib/Makefile 中 `COMPILER = ...` 一行，使得它与你使用的编译器匹配。
 
 ### 启动方法
 
@@ -101,9 +139,7 @@ pip3 install -r requirements.txt
 | NOILinux 物理机 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.7 | 9.4.0 | 2.5.1 |
 | NOILinux + gcc 13 物理机 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.7 | 13.1.0 | 2.5.1 |
 | Ubuntu 24 虚拟机 | VMWare Workstation 17.6.4 <br> Ubuntu 24.04.3 | 6.14.0-36-generic | 3.12.3 | 13.3.0 | 2.5.5 |
-| WSL2 | Windows 11 25H2 <br> Ubuntu 24.04.6 | unknown | 3.12.3 | 13.3.0 | / |
-
-注：构建版本 rev18 及以上未在 WSL2 上测试，待后续补测。由于 rev22 前没有引入 libseccomp，不标记版本。
+| WSL2 | Windows 11 25H2 (26200.7171) <br> Ubuntu 24.04 | 5.15.167.4-microsoft-standard-WSL2 | 3.12.3 | 13.3.0 | 2.5.5 |
 
 ## 文档
 
