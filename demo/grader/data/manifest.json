@@ -1,0 +1,10 @@
+{
+    "name": "strategy",
+    "checker_conf":{
+        "lang":"c++:Makefile",
+        "limit":{
+            "keep":true
+        }
+    },
+    "isolate":true
+}
