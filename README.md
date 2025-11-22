@@ -17,7 +17,7 @@
 
 - Linux 5.0 以上（对应 Ubuntu 20 以上）
 - Python 3.12 以上
-- GCC 支持 C++20
+- GCC 8 以上
 - libseccomp-dev 2.5.0 以上
 
 建议全部更新到可以更新的最新版本。
@@ -30,6 +30,12 @@
 
 ```sh
 python3 -m venv .venv
+```
+
+在控制台激活 venv：
+
+```sh
+source .venv/bin/activate
 ```
 
 然后安装依赖：
@@ -92,9 +98,10 @@ pip3 install -r requirements.txt
 
 | 设备名称 | OS | Linux | Python | GCC | libseccomp |
 | :-: | :-: | :-: | :-: | :-: | :-: |
-| NOILinux 物理机 | Ubuntu 20.04.6 LTS | 5.15.0-139-generic | 3.13.7 | 9.4.0 | 2.5.1 |
-| NOILinux + gcc 13 物理机 | Ubuntu 20.04.6 LTS | 5.15.0-139-generic | 3.13.7 | 13.1.0 | 2.5.1 |
-| WSL2 | Windows 11 25H2 <br> Ubuntu 20.04.6 LTS | unknown | 3.12.3 | 13.3.0 | / |
+| NOILinux 物理机 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.7 | 9.4.0 | 2.5.1 |
+| NOILinux + gcc 13 物理机 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.7 | 13.1.0 | 2.5.1 |
+| Ubuntu 24 虚拟机 | VMWare Workstation 17.6.4 <br> Ubuntu 24.04.3 | 6.14.0-36-generic | 3.12.3 | 13.3.0 | 2.5.5 |
+| WSL2 | Windows 11 25H2 <br> Ubuntu 24.04.6 | unknown | 3.12.3 | 13.3.0 | / |
 
 注：构建版本 rev18 及以上未在 WSL2 上测试，待后续补测。由于 rev22 前没有引入 libseccomp，不标记版本。
 

@@ -324,11 +324,20 @@ static inline bool handle_syscall(int syscall, unsigned long long args[]) {
     case SYS_getitimer:
     case SYS_timer_create:
     case SYS_timer_delete:
+    // 资源限制
+    case SYS_getrlimit:
+    case SYS_setrlimit:
+    case SYS_prlimit64:
     // 时间
     case SYS_gettimeofday:
     case SYS_clock_gettime: // 获取时钟时间
     case SYS_time:          // 获取秒级时间
     case SYS_times:         // 获取进程时间
+    // 系统
+    case SYS_set_tid_address:
+    case SYS_set_robust_list:
+    case SYS_rseq:
+    case SYS_futex:
     // 随机
     case SYS_getrandom:
     // 其他

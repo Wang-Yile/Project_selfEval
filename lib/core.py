@@ -23,7 +23,7 @@ DEBUG_EXC = False
 REMIND_MAX = 100
 _rmd: list[Text] = []
 def _fexc(err: Exception, *, _prompt = "") -> Text:
-    ret = MAGENTA(err.__class__.__qualname__) + " " + _prompt + " " + str(err)
+    ret = MAGENTA(err.__class__.__qualname__) + " " + _prompt + str(err)
     if hasattr(err, "__notes__"):
         for x in err.__notes__:
             ret += "\n" + x
@@ -34,7 +34,7 @@ def _remember(s: Text):
     elif len(_rmd) == REMIND_MAX:
         _rmd.append(YELLOW("Warning") + " 异常记录达到上限，因此有异常被忽略。")
 def _get_prompt(dep = 0):
-    return Gray(f"{os.path.relpath(sys._getframe(dep+1).f_code.co_filename)}:{sys._getframe(dep+1).f_lineno} ") if DEBUG_EXC else ""
+    return Gray(f"{os.path.relpath(sys._getframe(dep+1).f_code.co_filename)}:{sys._getframe(dep+1).f_lineno} ") if DEBUG_EXC else " "
 def fatal(msg: Exception | str):
     _rmd.clear()
     print()
