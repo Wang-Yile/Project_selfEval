@@ -23,6 +23,7 @@ sandbox.cpp
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
+#include <sys/timerfd.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -38,7 +39,7 @@ using std::cerr;
 using std::endl;
 
 #define TRUNK 128
-std::string read_string(long addr) {
+static inline std::string read_string(long addr) {
     std::string result;
     char buffer[TRUNK];
     struct iovec local_iov = {
@@ -234,13 +235,20 @@ static inline int install_signalfd() {
     sigprocmask(SIG_BLOCK, &mask, NULL);
     return signalfd(-1, &mask, SFD_NONBLOCK);
 }
+static inline int install_timerfd(time_t t) {
+    struct itimerspec its{
+        .it_interval = {0, 0},
+        .it_value = {.tv_sec = t / 1000000, .tv_nsec = (t % 1000000) * 1000},
+    };
+    int fd = timerfd_create(CLOCK_MONOTONIC_COARSE, TFD_CLOEXEC);
+    timerfd_settime(fd, 0, &its, nullptr);
+    return fd;
+}
 static inline void send_fd(int socket, int fd) {
     struct cmsghdr *cmsg;
     char buf[CMSG_SPACE(sizeof(fd))];
     char dummy = '!';
-    struct iovec io = {
-        .iov_base = &dummy,
-        .iov_len = 1};
+    struct iovec io = {.iov_base = &dummy, .iov_len = 1};
     struct msghdr msg{
         .msg_name = nullptr,
         .msg_namelen = 0,
@@ -261,9 +269,7 @@ static inline int recv_fd(int socket) {
     struct cmsghdr *cmsg;
     char buf[CMSG_SPACE(sizeof(int))];
     char dummy;
-    struct iovec io = {
-        .iov_base = &dummy,
-        .iov_len = 1};
+    struct iovec io = {.iov_base = &dummy, .iov_len = 1};
     struct msghdr msg{
         .msg_name = nullptr,
         .msg_namelen = 0,
@@ -355,24 +361,36 @@ static inline bool handle_syscall(int syscall, unsigned long long args[]) {
     }
     }
 }
-static inline int tracer(int listener_fd, int signal_fd) {
+static inline int tracer(int listener_fd, int signal_fd, int timer_fd) {
     seccomp_notif_sizes sizes;
     syscall(SYS_seccomp, SECCOMP_GET_NOTIF_SIZES, 0, &sizes);
     seccomp_notif *notif = (struct seccomp_notif *)malloc(sizes.seccomp_notif);
     seccomp_notif_resp *resp = (struct seccomp_notif_resp *)malloc(sizes.seccomp_notif_resp);
     kill(child_pid, SIGCONT);
-    struct pollfd pfds[2]{
+    struct pollfd pfds[3]{
         {.fd = listener_fd, .events = POLLIN | POLLPRI, .revents = 0},
-        {.fd = signal_fd, .events = POLLIN | POLLPRI, .revents = 0}};
+        {.fd = signal_fd, .events = POLLIN | POLLPRI, .revents = 0},
+        {.fd = timer_fd, .events = POLLIN | POLLPRI, .revents = 0},
+    };
     int ret = 0;
     for (;;) {
-        int poll_result = poll(pfds, 2, -1);
+        int poll_result = poll(pfds, 3, -1);
         if (poll_result < 0) {
             if (errno == EINTR)
                 continue;
             perror("poll failed");
             ret = -1;
             break;
+        }
+        if (pfds[2].revents & (POLLIN | POLLPRI)) {
+            uint64_t val;
+            ssize_t s = read(timer_fd, &val, sizeof(val));
+            if (s == sizeof(val)) {
+                kill(child_pid, SIGKILL);
+                ret = TLE | TLE_OVERDUE;
+                break;
+            } else
+                cerr << "Failed to read from timerfd" << endl;
         }
         if (pfds[1].revents & (POLLIN | POLL_PRI)) {
             signalfd_siginfo siginfo;
@@ -422,8 +440,6 @@ static inline int tracer(int listener_fd, int signal_fd) {
     return ret;
 }
 
-bool child_overdue;
-
 int main(int argc, char *argv[]) {
     char *prog_path = argv[1];
     char *output = argv[2];
@@ -434,10 +450,6 @@ int main(int argc, char *argv[]) {
     // argv[7] 是 cpuset 的二进制掩码
     int file_cnt = atoi(argv[8]);
     int args_st = 9 + (file_cnt << 1);
-    itimerval it;
-    it.it_value.tv_sec = time_limit / 1000000;
-    it.it_value.tv_usec = time_limit % 1000000;
-    it.it_interval.tv_sec = it.it_interval.tv_usec = 0;
     int socket_pair[2];
     socketpair(AF_UNIX, SOCK_STREAM, 0, socket_pair);
     pid = fork();
@@ -458,6 +470,10 @@ int main(int argc, char *argv[]) {
         apply_rlimit();
         send_fd(socket_pair[1], install_filter_raw());
         close(socket_pair[1]);
+        itimerval it;
+        it.it_value.tv_sec = time_limit / 1000000;
+        it.it_value.tv_usec = time_limit % 1000000;
+        it.it_interval.tv_sec = it.it_interval.tv_usec = 0;
         tgkill(pid, gettid(), SIGSTOP);
         setitimer(ITIMER_PROF, &it, nullptr); // 如果选手程序处理 SIGPROF，高精度计时器会失效
         execv(prog_path, args);
@@ -484,26 +500,15 @@ int main(int argc, char *argv[]) {
             add_permission(p, 1);
         for (int i = 0; i < file_cnt; ++i)
             add_permission(fs::path(argv[9 + (i << 1)]).lexically_normal(), atoi(argv[9 + (i << 1 | 1)]));
-        it.it_value.tv_sec += 1;
-        struct sigaction sa;
-        sigemptyset(&sa.sa_mask);
-        sa.sa_flags = 0;
-        sa.sa_handler = [](int sig) {
-            if (sig == SIGALRM && child_pid > 0) {
-                kill(child_pid, SIGKILL);
-                child_overdue = true;
-            }
-        };
-        sigaction(SIGALRM, &sa, nullptr);
         child_dirfd_path = fs::path("/proc/" + std::to_string(child_pid) + "/fd/");
         wait4(child_pid, &status, WUNTRACED, &usage);
         start_time = trans(usage);
         kill(pid, SIGSTOP); // 挂起等待进一步指令
-        int signal_fd = install_signalfd();
         int listener_fd = recv_fd(socket_pair[0]);
         close(socket_pair[0]);
-        setitimer(ITIMER_REAL, &it, nullptr);
-        int ret = tracer(listener_fd, signal_fd);
+        int signal_fd = install_signalfd();
+        int timer_fd = install_timerfd(time_limit + TIMER_REDUNDANCY);
+        int ret = tracer(listener_fd, signal_fd, timer_fd);
         if (ret == -1)
             return 1;
         if (wait4(child_pid, &status, WUNTRACED, &usage) == child_pid) {
@@ -525,13 +530,13 @@ int main(int argc, char *argv[]) {
             perror("waitpid failed");
             ret = -1;
         }
+        // TODO 这个很慢
         time_t t = trans(usage) - start_time;
-        if (child_overdue)
-            ret = TLE | TLE_OVERDUE;
-        else if (t >= time_limit)
+        if (!(ret & TLE) && t >= time_limit)
             ret = TLE;
-        close(signal_fd);
         close(listener_fd);
+        close(signal_fd);
+        close(timer_fd);
         if (ret == -1)
             return 1;
         std::ofstream out(output, std::ios::out);

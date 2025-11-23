@@ -58,10 +58,6 @@ int main(int argc, char *argv[]) {
     // argv[7] 是 cpuset 的二进制掩码
     int file_cnt = atoi(argv[8]);
     int args_st = 9 + (file_cnt << 1);
-    itimerval it;
-    it.it_value.tv_sec = time_limit / 1000000;
-    it.it_value.tv_usec = time_limit % 1000000;
-    it.it_interval.tv_sec = it.it_interval.tv_usec = 0;
     struct sigaction sa;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
@@ -87,9 +83,8 @@ int main(int argc, char *argv[]) {
     } else if (pid > 0) {
         child_pid = pid;
         pid = getpid();
-        it.it_value.tv_sec += 1;
         sa.sa_handler = [](int sig) {
-            if (sig == SIGALRM && child_pid > 0) {
+            if (sig == SIGALRM) {
                 kill(child_pid, SIGKILL);
                 child_overdue = true;
             }
@@ -98,6 +93,11 @@ int main(int argc, char *argv[]) {
         wait4(child_pid, &status, WUNTRACED, &usage);
         start_time = trans(usage);
         kill(pid, SIGSTOP); // 挂起等待进一步指令
+        time_limit += TIMER_REDUNDANCY;
+        itimerval it;
+        it.it_value.tv_sec = time_limit / 1000000;
+        it.it_value.tv_usec = time_limit % 1000000;
+        it.it_interval.tv_sec = it.it_interval.tv_usec = 0;
         kill(child_pid, SIGCONT);
         setitimer(ITIMER_REAL, &it, nullptr);
         int ret = tracer();

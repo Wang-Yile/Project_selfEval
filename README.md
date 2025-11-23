@@ -90,6 +90,8 @@ make
 
 如果你使用其它编译器，请自行研究。
 
+如果你在 WSL 中编译沙箱，请在 lib/Makefile 中 `ARGS = ...` 一行的末尾加上 `-DWSL`，沙箱将针对 WSL 进行调整。
+
 你可能需要修改 lib/Makefile 中 `COMPILER = ...` 一行，使得它与你使用的编译器匹配。
 
 ### 启动方法
@@ -100,11 +102,11 @@ make
 
 不推荐直接使用 python 解释器运行 selfeval.py，因为这样可能无法正常加载虚拟环境。
 
-### （可选）在 bash 中配置别名
+### （可选）在终端中创建别名
 
-为了让使用 selfeval 更加方便，建议在 bash 中创建别名，步骤如下：
+为了让使用 selfeval 更加方便，建议在终端中创建别名，以 bash 为例，步骤如下：
 
-1. 在 bash 中，可以修改 `~/.bashrc` 或 `~/.bash_aliases` 以在 bash 启动时注入命令。
+1. 修改 `~/.bashrc` 或 `~/.bash_aliases` 可以在 bash 启动时注入命令。
 
     注意：修改配置文件前建议进行备份。
 
@@ -114,10 +116,10 @@ make
     alias selfeval="/path/to/selfeval/run.sh"
     ```
 
-    例如，selfeval 安装在文件夹 `/home/user/selfeval/` 下时：
+    例如，selfeval 安装在文件夹 `/home/user/Project_selfEval/` 下时：
 
     ```sh
-    alias selfeval="/home/user/selfeval/run.sh"
+    alias selfeval="/home/user/Project_selfEval/run.sh"
     ```
 
 3. 重启终端或者使用命令 `source ~/.bashrc` 重新加载终端配置即可应用更改。

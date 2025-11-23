@@ -14,6 +14,12 @@ sandbox 和 sandbox-tiny 共用的宏定义、函数和全局变量。
 
 #define TLE_OVERDUE 1
 
+#ifdef WSL
+#define TIMER_REDUNDANCY 2000000
+#else
+#define TIMER_REDUNDANCY 1000000
+#endif
+
 #include <sys/resource.h>
 
 static inline void setlimit(int code, rlim_t soft, rlim_t hard = 0) {

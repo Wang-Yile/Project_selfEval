@@ -1,4 +1,5 @@
 COMPILER = g++-13
+# 如果在 WSL 中编译，请在 ARGS 末尾追加 -DWSL
 ARGS = -std=c++2a -Wall -Wextra -Wshadow -Wconversion -O3
 
 all: sandbox sandbox-tiny
