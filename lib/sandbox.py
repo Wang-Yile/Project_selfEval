@@ -13,8 +13,8 @@ from .ds import Program, Limit, Verdict
 from .kernel import *
 from .utils import fmemory, hash32, random_hash, stdopen
 
-SANDBOX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sandbox")
-SANDBOX_TINY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sandbox-tiny")
+SANDBOX = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin", "sandbox")
+SANDBOX_TINY = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin", "sandbox-tiny")
 
 # sandbox.h 中定义的常量
 EXIT = 0x10000

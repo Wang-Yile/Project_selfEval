@@ -2,10 +2,11 @@
 /archive
 /data
 /doc
+
+/bin/
+/build/
 /**/__pycache__
-/lib/sandbox
-/lib/sandbox-tiny
-/lib/gen
+
 /lib/constants.py
 /selfeval.code-workspace
 /1.*

@@ -83,7 +83,7 @@ sudo apt install libseccomp-dev
 sudo apt install libcap-dev
 ```
 
-lib/Makefile 包含如下内容，在执行 `make` 前请确认它们：
+Makefile 包含如下内容，在执行 `make` 前请确认它们：
 
 - SETCAP：控制是否设置能力，设置能力需要管理员权限，默认为是。如果不希望设置能力，请设置 SETCAP 为 0 或者从命令行传入参数 SETCAP=0。
 - COMPILER：指定编译器，默认为 g++-13。你可能需要修改它为你使用的编译器。如果你使用非 GCC 的编译器，请自行研究。
@@ -99,7 +99,9 @@ lib/Makefile 包含如下内容，在执行 `make` 前请确认它们：
 make
 ```
 
-即可使用 Makefile 编译沙箱。
+即可使用 Makefile 编译沙箱。如果 SETCAP=1，你可能需要输入密码以启用 sudo。
+
+源代码存放在 src 目录，编译结果存储到 bin 目录，中间文件存储到 build 目录。build 目录中的内容可以安全地删除。
 
 ### 启动方法
 
