@@ -45,7 +45,7 @@ from contextlib import redirect_stdout
 
 from lib.collect import process_file, collect_tests, collect_problem, collected_problem
 from lib.color import *
-from lib.core import VERSION, DEBUG, startup_recall, error, fatal, _remind, tick, tock
+from lib.core import VERSION, DEBUG, set_quiet, is_quiet, startup_recall, error, fatal, _remind, tick, tock
 from lib.ds import TestConf, JudgeConf, read_judge_conf, Verdict, Test
 from lib.fmt import LiveStream
 from lib.jury import compile_program, jury_test
@@ -117,12 +117,16 @@ def main(source: str, data: list[str]):
         if problem.get("interactor") is None:
             error(f"交互库 {interactor} 编译失败。")
             return
-    startup_recall()
-    live = LiveStream(tests)
+    if is_quiet():
+        live = None
+    else:
+        startup_recall()
+        live = LiveStream(tests)
     for test in tests:
         jury_test(cache_path, prog, copy.deepcopy(testconf), problem, test, live)
-    print()
-    live.print_conclusion()
+    if not is_quiet():
+        print()
+        live.print_conclusion()
 
 def parse_argv(argv: list[str]):
     i = -1
@@ -148,6 +152,8 @@ def parse_argv(argv: list[str]):
             pass
         elif arg == "--clean":
             cache_clear()
+        elif arg == "--quiet":
+            set_quiet()
         elif arg == "--ignore-recall":
             atexit.unregister(_remind)
         elif arg.startswith("--") and arg.find("=") != -1:
@@ -201,7 +207,8 @@ if __name__ == "__main__":
         exit(2)
     t = tock("用时")
     mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
-    print("内存用量", fmemory(mem))
+    if not is_quiet():
+        print("内存用量", fmemory(mem))
     if (p := os.environ.get("SELFEVAL_DEBUG_AUTO", None)) is not None:
         with (
             open(p, "w") as file,
