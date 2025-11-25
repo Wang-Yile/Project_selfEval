@@ -18,13 +18,6 @@ DEBUG_DS = False
 DEBUG_SANDBOX = False
 DEBUG_EXC = False
 
-QUIET = False
-def set_quiet():
-    global QUIET
-    QUIET = True
-def is_quiet():
-    return QUIET
-
 # TODO 优化异常打印，支持 DEBUG_EXC 打印调用栈
 # 打印异常
 REMIND_MAX = 100
@@ -48,21 +41,17 @@ def fatal(msg: Exception | str):
     print((RED("FATAL") + " " + (_fexc(msg, _prompt="\n") if isinstance(msg, Exception) else msg)).toansi())
     print()
 def error(msg: Exception | str, remind = False):
-    if QUIET:
-        return
     s = (_fexc(msg, _prompt = _get_prompt(1)) if isinstance(msg, Exception) else RED("Error") + " " + _get_prompt(1) + msg)
     if remind or DEBUG:
         _remember(s)
     print(s.toansi())
 def warning(msg: str, remind = False):
-    if QUIET:
-        return
     s = YELLOW("Warning") + " " + _get_prompt(1) + msg
     if remind or DEBUG:
         _remember(s)
     print(s.toansi())
 def _remind():
-    if not QUIET and _rmd:
+    if _rmd:
         print()
         print(CYAN("RECALL").toansi())
         for x in _rmd:
@@ -130,11 +119,10 @@ def tick():
     _ticket.append(time.monotonic())
 def tock(prompt: str = None):
     t = time.monotonic()-_ticket[-1]
-    if not QUIET:
-        if prompt is None:
-            print(t, "s")
-        else:
-            print(prompt, t, "s")
+    if prompt is None:
+        print(t, "s")
+    else:
+        print(prompt, t, "s")
     _ticket.pop()
     return t
 
