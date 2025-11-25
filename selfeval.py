@@ -1,6 +1,39 @@
+import os
+import pwd
+
+from lib.kernel import *
+
+if __name__ == "__main__":
+    if os.getuid() == 0:
+        kernel_warning("不推荐使用 root 启动 selfeval。")
+        try:
+            try:
+                user = os.getlogin()
+            except OSError as err:
+                kernel_warning("获取登录用户名失败，将降权至 nobody。")
+                user = "nobody"
+            try:
+                info = pwd.getpwnam(user)
+                gid = info.pw_gid
+                uid = info.pw_uid
+            except KeyError as err:
+                raise selfEvalFatalError from err
+            os.setgroups([])
+            os.setregid(gid, gid)
+            os.setreuid(uid, uid)
+            if "HOME" in os.environ:
+                del os.environ["HOME"]
+            if os.getuid() == 0:
+                raise selfEvalFatalError("降权失败，这是内部错误。\n如果看到此错误，说明你的 selfeval 或 Linux 可能已损坏，请反馈问题。\n请以普通用户权限运行本程序，从而绕过此错误。")
+        except selfEvalFatalError as err:
+            kernel_fatal(err)
+            exit(2)
+        except Exception as err:
+            kernel_fatal(err)
+            exit(1)
+
 import atexit
 import copy
-import os
 import resource
 import shutil
 import sys
@@ -165,6 +198,7 @@ if __name__ == "__main__":
         starter()
     except SandboxFatalError as err:
         fatal(err)
+        exit(2)
     t = tock("用时")
     mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
     print("内存用量", fmemory(mem))

@@ -5,6 +5,8 @@
 /**/__pycache__
 /lib/sandbox
 /lib/sandbox-tiny
+/lib/gen
+/lib/constants.py
 /selfeval.code-workspace
 /1.*
 /testlib.h

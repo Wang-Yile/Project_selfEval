@@ -7,8 +7,10 @@ import sys
 import threading
 
 from . import userconf
+from .constants import RLIM_INFINITY
 from .core import DEBUG_SANDBOX, acquire_cpu, release_cpu, error, warning
 from .ds import Program, Limit, Verdict
+from .kernel import *
 from .utils import fmemory, hash32, random_hash, stdopen
 
 SANDBOX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sandbox")
@@ -24,9 +26,7 @@ FBD = 0x200000
 
 TLE_OVERDUE = 1
 
-RLIMIT_INFINITY = (1 << (8 * ctypes.sizeof(ctypes.c_long))) - 1
-
-class SandboxFatalError(Exception):
+class SandboxFatalError(selfEvalFatalError):
     pass
 
 TRUNK = 4096
@@ -113,7 +113,7 @@ class Sandbox():
         else:
             sandbox = SANDBOX
         self.ret = os.path.join(self.cwd, random_hash(hash32))
-        limit_cmdline = [str(min(x, RLIMIT_INFINITY)) for x in self.limit.cmdline()]
+        limit_cmdline = [str(min(x, RLIM_INFINITY)) for x in self.limit.cmdline()]
         if self.isolate:
             self.cpu = acquire_cpu()
             if self.cpu == -1:

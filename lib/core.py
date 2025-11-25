@@ -34,11 +34,11 @@ def _remember(s: Text):
     elif len(_rmd) == REMIND_MAX:
         _rmd.append(YELLOW("Warning") + " 异常记录达到上限，因此有异常被忽略。")
 def _get_prompt(dep = 0):
-    return Gray(f"{os.path.relpath(sys._getframe(dep+1).f_code.co_filename)}:{sys._getframe(dep+1).f_lineno} ") if DEBUG_EXC else " "
+    return Gray(f"{os.path.relpath(sys._getframe(dep+1).f_code.co_filename)}:{sys._getframe(dep+1).f_lineno} ") if DEBUG_EXC else ""
 def fatal(msg: Exception | str):
     _rmd.clear()
     print()
-    print((RED("FATAL") + " " + (_fexc(msg) if isinstance(msg, Exception) else msg)).toansi())
+    print((RED("FATAL") + " " + (_fexc(msg, _prompt="\n") if isinstance(msg, Exception) else msg)).toansi())
     print()
 def error(msg: Exception | str, remind = False):
     s = (_fexc(msg, _prompt = _get_prompt(1)) if isinstance(msg, Exception) else RED("Error") + " " + _get_prompt(1) + msg)

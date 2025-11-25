@@ -20,6 +20,7 @@
 - GNU GCC 8 以上
 - GNU Make 3.81 以上
 - libseccomp 2.5.0 以上，需要开发包
+- libcap 2.32 以上，需要开发包
 
 建议全部更新到可以更新的最新版本。
 
@@ -62,7 +63,7 @@ pip3 install -r requirements.txt -i https://mirror.tuna.tsinghua.edu.cn/pypi/web
 
 ### 编译沙箱
 
-沙箱基于 seccomp-bpf。
+沙箱基于 seccomp-bpf 和 capabilities。
 
 检查 GCC 和 Make 版本：
 
@@ -71,28 +72,34 @@ g++ --version
 make --version
 ```
 
-安装 libseccomp，以 Ubuntu 为例：
+安装 libseccomp 和 libcap，以 Ubuntu 为例：
 
 ```sh
 # 运行时依赖
 sudo apt install libseccomp2
+sudo apt install libcap2
 # 构建依赖
 sudo apt install libseccomp-dev
+sudo apt install libcap-dev
 ```
 
-切换到 lib 目录，执行：
+lib/Makefile 包含如下内容，在执行 `make` 前请确认它们：
+
+- SETCAP：控制是否设置能力，设置能力需要管理员权限，默认为是。如果不希望设置能力，请设置 SETCAP 为 0 或者从命令行传入参数 SETCAP=0。
+- COMPILER：指定编译器，默认为 g++-13。你可能需要修改它为你使用的编译器。如果你使用非 GCC 的编译器，请自行研究。
+- ARGS：指定编译参数。如果你在 WSL 中编译，请加入 -DWSL，沙箱将针对 WSL 进行特殊处理。
+- sandbox：主沙箱。
+- sandbox-tiny：简化版沙箱。
+- gen：用于生成 lib.constants 模块的程序。
+- constants.py：将操作系统的一些宏定义常量暴露给 Python 的模块。这个模块会在编译时自动生成。
+
+确认后，切换到 lib 目录，执行：
 
 ```sh
 make
 ```
 
-即可编译沙箱。
-
-如果你使用其它编译器，请自行研究。
-
-如果你在 WSL 中编译沙箱，请在 lib/Makefile 中 `ARGS = ...` 一行的末尾加上 `-DWSL`，沙箱将针对 WSL 进行调整。
-
-你可能需要修改 lib/Makefile 中 `COMPILER = ...` 一行，使得它与你使用的编译器匹配。
+即可使用 Makefile 编译沙箱。
 
 ### 启动方法
 

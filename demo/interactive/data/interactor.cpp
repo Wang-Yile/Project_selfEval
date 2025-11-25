@@ -41,7 +41,6 @@ signed main(signed argc,char *argv[]){
                 quitf(_wa,"cnt > 52");
             // string t=ouf.readToken();
             string t=ouf.readToken("[a-zA-Z]+");
-            cerr<<"A"<<endl;
             if(s.size()!=t.size())
                 quitf(_wa,"s.size() != t.size()");
             int x=0;

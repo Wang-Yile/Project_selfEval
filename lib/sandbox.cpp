@@ -16,6 +16,7 @@ sandbox.cpp
 #include <signal.h>
 #include <string.h>
 #include <string>
+#include <sys/capability.h>
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <sys/signalfd.h>
@@ -468,6 +469,17 @@ int main(int argc, char *argv[]) {
                 CPU_SET(i, &mask);
         sched_setaffinity(pid, sizeof(mask), &mask);
         apply_rlimit();
+        cap_t cap = cap_get_pid(pid);
+        cap_flag_value_t capval;
+        cap_get_flag(cap, CAP_SYS_NICE, CAP_EFFECTIVE, &capval);
+        if (capval == CAP_SET) {
+            if (!(nice(-20) == -1 && errno)) {
+                sched_param param;
+                param.sched_priority = sched_get_priority_max(SCHED_FIFO);
+                sched_setscheduler(pid, SCHED_RR, &param);
+            }
+        }
+        cap_free(cap);
         send_fd(socket_pair[1], install_filter_raw());
         close(socket_pair[1]);
         itimerval it;
@@ -530,7 +542,6 @@ int main(int argc, char *argv[]) {
             perror("waitpid failed");
             ret = -1;
         }
-        // TODO 这个很慢
         time_t t = trans(usage) - start_time;
         if (!(ret & TLE) && t >= time_limit)
             ret = TLE;
