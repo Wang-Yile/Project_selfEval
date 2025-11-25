@@ -473,11 +473,12 @@ int main(int argc, char *argv[]) {
         cap_flag_value_t capval;
         cap_get_flag(cap, CAP_SYS_NICE, CAP_EFFECTIVE, &capval);
         if (capval == CAP_SET) {
-            if (!(nice(-20) == -1 && errno)) {
-                sched_param param;
-                param.sched_priority = sched_get_priority_max(SCHED_FIFO);
-                sched_setscheduler(pid, SCHED_RR, &param);
-            }
+            if (nice(-20) == -1)
+                perror("set nice");
+            // sched_param param;
+            // param.sched_priority = sched_get_priority_max(SCHED_FIFO);
+            // if (sched_setscheduler(pid, SCHED_FIFO, &param) == -1)
+            //     perror("set scheduler failed");
         }
         cap_free(cap);
         send_fd(socket_pair[1], install_filter_raw());
