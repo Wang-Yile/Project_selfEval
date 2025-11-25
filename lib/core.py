@@ -1,5 +1,5 @@
 VERSION = "1.5.0"
-BUILD = "rev25"
+BUILD = "rev26"
 
 import atexit
 import fcntl
