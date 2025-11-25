@@ -5,6 +5,7 @@ sandbox-tiny.cpp
 */
 
 #include <fstream>
+#include <sys/prctl.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -13,16 +14,15 @@ sandbox-tiny.cpp
 
 static inline int tracer() {
     for (;;) { // 监控子进程运行
-        wait4(child_pid, &status, WUNTRACED, &usage);
-        if (errno == EINTR)
+        if (wait4(child_pid, &status, WUNTRACED, &usage) == -1 && errno == EINTR)
             continue;
         if (trans(usage) - start_time > time_limit) {
             kill(child_pid, SIGKILL);
-            return TLE | SIGKILL;
+            return TLE;
         }
         if ((usage.ru_maxrss << 10) > mem_limit) {
             kill(child_pid, SIGKILL);
-            return MLE | SIGKILL;
+            return MLE;
         }
         if (WIFEXITED(status))
             return EXIT | WEXITSTATUS(status);
@@ -38,14 +38,14 @@ static inline int tracer() {
             else if (sig == SIGCONT)
                 ;
             else if (WIFSIGNALED(sig))
-                return SIG | sig;
+                return SIG | WTERMSIG(sig);
             else if (WIFEXITED(sig))
-                return EXIT | sig;
+                return EXIT | WEXITSTATUS(sig);
         }
     }
 }
 
-bool child_overdue;
+static volatile sig_atomic_t child_overdue;
 
 int main(int argc, char *argv[]) {
     pid = fork();
@@ -63,6 +63,8 @@ int main(int argc, char *argv[]) {
     sa.sa_flags = 0;
     if (pid == 0) {
         pid = getpid();
+        prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+        prctl(PR_SET_PDEATHSIG, SIGKILL);
         char **args = new char *[argc - args_st + 2];
         args[0] = prog_path;
         for (int i = args_st; i < argc; ++i)
@@ -86,7 +88,7 @@ int main(int argc, char *argv[]) {
         sa.sa_handler = [](int sig) {
             if (sig == SIGALRM) {
                 kill(child_pid, SIGKILL);
-                child_overdue = true;
+                child_overdue = 1;
             }
         };
         sigaction(SIGALRM, &sa, nullptr);

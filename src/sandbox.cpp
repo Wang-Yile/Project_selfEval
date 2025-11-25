@@ -442,6 +442,10 @@ static inline int tracer(int listener_fd, int signal_fd, int timer_fd) {
 }
 
 int main(int argc, char *argv[]) {
+    prctl(PR_SET_DUMPABLE, 0);
+    prctl(PR_SET_PTRACER, 0, 0, 0, 0);
+    prctl(PR_SET_KEEPCAPS, 0);
+    prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
     char *prog_path = argv[1];
     char *output = argv[2];
     time_limit = atol(argv[3]);
@@ -457,6 +461,8 @@ int main(int argc, char *argv[]) {
     if (pid == 0) {
         pid = getpid();
         close(socket_pair[0]);
+        prctl(PR_SET_DUMPABLE, 0);
+        prctl(PR_SET_PDEATHSIG, SIGKILL);
         char **args = new char *[argc - args_st + 2];
         args[0] = prog_path;
         for (int i = args_st; i < argc; ++i)

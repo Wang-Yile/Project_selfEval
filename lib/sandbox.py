@@ -4,6 +4,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 
 from . import userconf
@@ -73,7 +74,7 @@ class Sandbox():
         self.args = args
         self.limit = Limit() if limit is None else limit
         self.cwd = cwd
-        self.env = env
+        self.env = env # TODO 安全的 env
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = None if DEBUG_SANDBOX else stderr
@@ -112,7 +113,8 @@ class Sandbox():
             sandbox = SANDBOX_TINY
         else:
             sandbox = SANDBOX
-        self.ret = os.path.join(self.cwd, random_hash(hash32))
+        fd, self.ret = tempfile.mkstemp(prefix="sandbox_result_", dir=self.cwd)
+        os.close(fd)
         limit_cmdline = [str(min(x, RLIM_INFINITY)) for x in self.limit.cmdline()]
         if self.isolate:
             self.cpu = acquire_cpu()
