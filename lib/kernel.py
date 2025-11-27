@@ -1,15 +1,7 @@
 __all__ = [
-    "libc", "libcap",
     "kernel_warning", "kernel_error", "kernel_fatal",
     "selfEvalFatalError",
 ]
-
-import ctypes
-
-libc = ctypes.CDLL("libc.so.6")
-libcap = ctypes.CDLL("libcap.so.2")
-
-libcap.cap_to_text.restype = ctypes.c_char_p
 
 class selfEvalFatalError(Exception):
     pass

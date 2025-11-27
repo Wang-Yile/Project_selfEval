@@ -4,9 +4,7 @@ BUILD = "rev26"
 import atexit
 import fcntl
 import os
-import queue
 import sys
-import threading
 import time
 
 from .color import *
@@ -125,33 +123,3 @@ def tock(prompt: str = None):
         print(prompt, t, "s")
     _ticket.pop()
     return t
-
-# 处理回调函数
-# _callback_pool = queue.SimpleQueue()
-# class Callback():
-#     def __init__(self, func, *args, **kwargs):
-#         self._func = func
-#         self._args = args
-#         self._kwargs = kwargs
-#     def call(self, *args, **kwargs):
-#         self._func(*self._args, *args, **self._kwargs, **kwargs)
-# class AsyncCallback(Callback):
-#     def call(self, *args, **kwargs):
-#         if len(kwargs) < len(self._kwargs):
-#             self._kwargs.update(kwargs)
-#             kwargs = self._kwargs
-#         else:
-#             kwargs.update(self._kwargs)
-#         _callback_pool.append((self._func, self._args + args, kwargs))
-# def _callback_main():
-#     while True:
-#         func, args, kwargs = _callback_pool.get()
-#         try:
-#             func(*args, **kwargs)
-#         except (StopIteration, StopAsyncIteration) as err:
-#             pass
-#         except Exception as err:
-#             err.add_note("回调函数出现了错误。")
-#             error(err)
-# _callback_th = threading.Thread(target=_callback_main, daemon=True)
-# _callback_th.start()

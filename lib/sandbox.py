@@ -1,4 +1,3 @@
-import ctypes
 import os
 import shutil
 import signal
@@ -12,7 +11,7 @@ from .constants import RLIM_INFINITY
 from .core import DEBUG_SANDBOX, acquire_cpu, release_cpu, error, warning
 from .ds import Program, Limit, Verdict
 from .kernel import *
-from .utils import fmemory, hash32, random_hash, stdopen
+from .utils import fmemory, stdopen
 
 SANDBOX = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin", "sandbox")
 SANDBOX_TINY = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin", "sandbox-tiny")

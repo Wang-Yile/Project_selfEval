@@ -5,7 +5,6 @@ import random
 import shutil
 import tempfile
 import zipfile
-from functools import cmp_to_key, lru_cache
 from itertools import chain
 from typing import Callable, Any
 
@@ -250,43 +249,6 @@ def copy_to(src: str, dst: str):
         shutil.copyfile(src, os.path.join(dst, os.path.basename(src)))
 
 # 路径排序
-# path_sort_type = tuple[str, list[str | int]]
-# @lru_cache(8192)
-# def path_cut_for_sort(path: str):
-#     def _foo(x: str):
-#         ret: list[str] = []
-#         for c in x:
-#             if not ret or ret[-1].isdigit() != c.isdigit() or ret[-1] == "." or c == ".":
-#                 ret.append(c)
-#             else:
-#                 ret[-1] += c
-#         for i in range(len(ret)):
-#             if ret[i].isdigit():
-#                 ret[i] = int(ret[i])
-#         return ret
-#     return os.path.dirname(path), _foo(os.path.basename(path))
-# def path_cmp(x: str, y: str):
-#     x = path_cut_for_sort(x)
-#     y = path_cut_for_sort(y)
-#     def _foo(a, b):
-#         if a < b:
-#             return -1
-#         elif b < a:
-#             return 1
-#         return 0
-#     if x[0] != y[0]:
-#         return _foo(x[0], y[0])
-#     for i in range(min(len(x[1]), len(y[1]))):
-#         if x[1][i] != y[1][i]:
-#             if x[1][i] == ".":
-#                 return -1
-#             if y[1][i] == ".":
-#                 return 1
-#             if type(x[1][i]) != type(y[1][i]):
-#                 return 1 if isinstance(x[1][i], int) else -1
-#             return _foo(x[1][i], y[1][i])
-#     return _foo(len(x[1]), len(y[1]))
-# path_cmp = cmp_to_key(path_cmp)
 def path_cmp2(key: Callable[[Any], NatsortInType] | None = None):
     return natsort_keygen(key=key, alg=ns.DEFAULT | ns.LOCALE | ns.IGNORECASE)
 

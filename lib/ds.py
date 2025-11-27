@@ -2,7 +2,6 @@ import copy
 import decimal
 import json
 import os
-import warnings
 from types import GenericAlias, UnionType
 from typing import Any, Callable, TypeVar
 
@@ -59,245 +58,6 @@ class ModelTransform():
         cls.__slots__ = ()
 class ModelDirectTransform(ModelTransform):
     _method: dict[type, Callable[[Any], Any]] = {}
-class SimpleModel():
-    """
-    初始化时会深拷贝默认值。
-    不会处理所有下划线开头或在 _ignore 中的属性名，否则先通过 _alias 翻译别名再尝试操作。
-    不可使用 isinstance 的类型注释请加入 _ignore 使其不被检查。（例如 typing.Optional 和 typing.Union，建议使用合并类型表达式）
-    将 self._record_extra 和 self._record_invalid 设为支持 append 的容器即可打开错误记录。
-    """
-    _method: dict[str, ModelTransform] = {}
-    _export: dict[str, ModelDirectTransform] = {}
-    _alias: dict[str, str] = {}
-    _ignore: set = set()
-    @classmethod
-    def haskey(cls, key: str):
-        return key in cls.__annotations__
-    @classmethod
-    def get_types_of(cls, key: str) -> _ModelNULLType | tuple[Any, ...]:
-        if key in cls._ignore or not cls.haskey(key):
-            return ModelNULL
-        if (typ := cls.__annotations__.get(key)) is None:
-            return ()
-        elif isinstance(typ, GenericAlias):
-            return (typ.__origin__, )
-        elif isinstance(typ, UnionType):
-            return typ.__args__
-        return (typ, )
-    def __init__(self, *, record_extra = False, record_invalid = False, throw_on_extra = False, throw_on_invalid = False, **kwargs):
-        warnings.warn(
-            "SimpleModel 已经被弃用，将于未来版本移除，请使用 Model 替换 SimpleModel。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self._default: dict[str, Any] = {}
-        self._real: dict[str, Any] = {}
-        self._record_extra: list[tuple[str, Any]] = [] if record_extra else None
-        self._record_invalid: list[tuple[str, Any]] = [] if record_invalid else None
-        self._throw_on_extra = throw_on_extra
-        self._throw_on_invalid = throw_on_invalid
-        for key in self.__class__.__annotations__:
-            self._default[key] = copy.deepcopy(getattr(self, key, ModelNULL))
-            setattr(self, key, ModelNULL)
-        self._real.clear()
-        for key, val in kwargs.items():
-            if key.startswith("_"):
-                raise TypeError(f"{self.__class__.__qualname__} 初始化时不支持键以下划线开头的项目 {key} = {repr(val)}")
-            else:
-                setattr(self, key, val)
-    def record_extra(self, key: str, value, /):
-        if self._record_extra is not None:
-            self._record_extra.append((key, value))
-        elif DEBUG_DS:
-            warning(f"未记录的冗余项目 {repr(key)} = {repr(value)}")
-        if self._throw_on_extra:
-            raise ValueError(f"冗余项目 {repr(key)} = {repr(value)}")
-    def record_invalid(self, key: str, value, /):
-        if self._record_invalid is not None:
-            self._record_invalid.append((key, value))
-        elif DEBUG_DS:
-            error(f"未记录的无效项目 {repr(key)} = {repr(value)}")
-        if self._throw_on_invalid:
-            raise ValueError(f"冗余项目 {repr(key)} = {repr(value)}")
-    def __setattr__(self, key: str, value):
-        if key.startswith("_") or key in self.__class__._ignore: # 忽略
-            return super().__setattr__(key, value)
-        key = self.get_translate(key)
-        if (x := key.find(".")) != -1:
-            rkey = key[:x]
-            if (v := self.get_real(rkey)) == ModelNULL:
-                tr = self.__class__._method.get(rkey, ModelNULL)
-                if tr == ModelNULL:
-                    self.record_invalid(key, value)
-                    return
-                self._real[rkey] = v = tr.trans({})
-            if isinstance(v, SimpleModel):
-                return setattr(v, key[x+1:], value)
-            self.record_invalid(key, value)
-            return
-        self._real[key] = value # 记录原值
-        if value == ModelNULL: # 逻辑删除
-            del self._real[key]
-            return super().__setattr__(key, self._default.get(key, ModelNULL))
-        if (typs := self.__class__.get_types_of(key)) == ModelNULL: # 冗余项
-            return self.record_extra(key, value)
-        if len(typs) == 0: # 没有类型注释，忽略
-            return super().__setattr__(key, value)
-        for typ in typs:
-            if isinstance(value, typ): # 符合要求
-                return super().__setattr__(key, value)
-        if (tr := self.__class__._method.get(key, ModelNULL)) != ModelNULL and (x := tr.trans(value)) != ModelNULL: # 可以转换，采用转换后的值
-            return super().__setattr__(key, x)
-        self.record_invalid(key, value)
-        return super().__setattr__(key, self._default.get(key, ModelNULL))
-    def get(self, key: str, /):
-        """
-        获取模型存储的值，等价于 getattr(model, key, ModelNULL)。
-        """
-        key = self.get_translate(key)
-        return getattr(self, key, ModelNULL)
-    def get_real(self, key: str, default = ModelNULL, /):
-        """
-        获取模型实际存储的值。
-        """
-        key = self.get_translate(key)
-        return self._real.get(key, default)
-    def get_import(self, key: str, value, /):
-        """
-        对于键 key，获取将 value 导入模型后的值。
-        """
-        key = self.get_translate(key)
-        if value == ModelNULL or (typs := self.__class__.get_types_of(key)) == ModelNULL:
-            return ModelNULL
-        if len(typs) == 0:
-            return value
-        for typ in typs:
-            if isinstance(value, typ):
-                return value
-        return ModelNULL if (tr := self.__class__._method.get(key, ModelNULL)) == ModelNULL else tr.trans(value)
-    def get_export(self, key: str, val: Any = ModelNULL, /):
-        """
-        对于键 key，获取将模型存储的值或者 val 导出的结果。
-        TODO 更丰富的导出
-        """
-        key = self.get_translate(key)
-        if val == ModelNULL:
-            if (val := self.get(key)) == ModelNULL:
-                return ModelNULL
-        return ModelNULL if (tr := self._export.get(key, ModelNULL)) == ModelNULL else tr.trans(val)
-    def get_translate(self, key: str, /):
-        """
-        获取别名的翻译，如果不是别名则返回 key。
-        """
-        return self._alias[key] if key in self._alias else key
-    def get_real_export(self, key: str, /):
-        """
-        对于键 key，获取将模型实际存储的值导出的结果。
-        """
-        key = self.get_translate(key)
-        if (val := self.get_real(key)) == ModelNULL:
-            return ModelNULL
-        return val if (tr := self._export.get(key, ModelNULL)) == ModelNULL else tr.trans(val)
-    def keys(self):
-        """
-        获取模型实际存储的键。
-        """
-        return self._real.keys()
-    def items(self):
-        """
-        获取模型实际存储的项目。
-        """
-        return self._real.items()
-    def isvalid(self, key: str, /):
-        """
-        判断 key 是否是有效的键。
-        """
-        key = self.get_translate(key)
-        if (x := key.find(".")) != -1:
-            key = key[:x]
-        return self.get_translate(key) in self.validkeys()
-    def validkeys(self):
-        """
-        获取所有有效的键。
-        """
-        return self.__class__.__annotations__.keys()
-    def __contains__(self, key: str):
-        return key in self._real
-    def __iter__(self):
-        """
-        迭代所有实际存储的键。
-        """
-        return self._real.keys().__iter__()
-    # def validate(self, key: str):
-    #     if not key in self._real or not hasattr(self, key):
-    #         return False
-    #     return self._real[key] == getattr(self, key)
-    def update(self, dic: "SimpleModel | dict[str, Any]", /):
-        """
-        从 dic 更新模型。
-        """
-        if isinstance(dic, dict):
-            return self.update(TestConf.from_dict(dic))
-        for key in dic:
-            setattr(self, key, dic.get_real(key))
-    def get_extra_recursive(self, root: str = None):
-        """
-        递归获取已记录的冗余项目。
-        """
-        if root is None:
-            root = ""
-        else:
-            root += "."
-        ret = []
-        for key, val in self._record_extra:
-            ret.append((root + key, val))
-        for key in self.validkeys():
-            if self.get_real(key) != ModelNULL and isinstance(val := self.get(key), SimpleModel):
-                ret += val.get_extra_recursive(root + key)
-        return ret
-    def get_invalid_recursive(self, root: str = None):
-        """
-        递归获取已记录的无效项目。
-        """
-        if root is None:
-            root = ""
-        else:
-            root += "."
-        ret = []
-        for key, val in self._record_invalid:
-            ret.append((root + key, val))
-        for key in self.validkeys():
-            if self.get_real(key) != ModelNULL and isinstance(val := self.get(key), SimpleModel):
-                ret += val.get_invalid_recursive(root + key)
-        return ret
-    @classmethod
-    def from_dict(cls, dic: dict[str, Any], /, record_extra = False, record_invalid = False, strict = True):
-        ret = cls()
-        if record_extra:
-            ret._record_extra = []
-        if record_invalid:
-            ret._record_invalid = []
-        for key, val in dic.items():
-            if strict and key.startswith("_"): # 避免攻击
-                ret.record_invalid(key, val)
-                continue
-            setattr(ret, key, val)
-        return ret
-    @classmethod
-    def from_model(cls, dic: "SimpleModel", /, record_extra = False, record_invalid = False):
-        ret = cls()
-        if record_extra:
-            ret._record_extra = []
-        if record_invalid:
-            ret._record_invalid = []
-        for key, val in dic.items():
-            setattr(ret, key, val)
-        return ret
-
-def ModelTransformToModelWrapper(cls: type[SimpleModel], /, record_extra = False, record_invalid = False):
-    class A(ModelTransform):
-        _method = [(dict, lambda dic: cls.from_dict(dic, record_extra, record_invalid))]
-    return A
 class ModelTransformToBool(ModelTransform):
     _method = [(str, ModelTransform.decorate_none_to_null(tobool))]
 class ModelTransformToTime(ModelTransform):
@@ -333,7 +93,7 @@ class Model():
         self._throw_on_invalid = throw_on_invalid
         for key in self.__class__.__annotations__:
             if (val := getattr(self, key, ModelNULL)) is not ModelNULL:
-                self._default[key] = val
+                self._default[key] = copy.deepcopy(val)
             super().__setattr__(key, val)
         for key, val in kwargs.items():
             if key.startswith("_"):
@@ -472,6 +232,11 @@ class Model():
         for key, val in dic.items():
             setattr(ret, key, val)
         return ret
+
+def ModelTransformToModelWrapper(cls: type[Model], /, record_extra = False, record_invalid = False):
+    class A(ModelTransform):
+        _method = [(dict, lambda dic: cls.from_dict(dic, record_extra, record_invalid))]
+    return A
 
 def ModelAliasWrapper(alias: dict[str, str]):
     T = TypeVar("T", bound=Model)
