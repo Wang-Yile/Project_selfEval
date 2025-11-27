@@ -50,7 +50,7 @@ from lib.ds import TestConf, JudgeConf, read_judge_conf, Verdict, Test
 from lib.fmt import LiveStream
 from lib.jury import compile_program, jury_test
 from lib.sandbox import SandboxFatalError
-from lib.utils import fmemory, is_xok, path_cmp, cache_clear
+from lib.utils import fmemory, is_xok, path_cmp2, cache_clear
 
 print(BOLD("selfeval").toansi(), VERSION)
 
@@ -75,7 +75,7 @@ def main(source: str, data: list[str]):
                 for file in os.listdir(d):
                     process_file(os.path.join(d, file), testcase=False)
     testconf.update(cmd_testconf)
-    tests.sort(key=lambda x: path_cmp(x.tests[0][0]))
+    tests.sort(key=path_cmp2(lambda x: x.tests[0][0]))
     if not tests:
         print("无数据。")
         return

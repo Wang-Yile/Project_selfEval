@@ -33,6 +33,12 @@ signed main(){
         fopen("/114514/1.in","r");
     }else if(n==9){
         fork();
+    }else if(n==10){
+        char **args = new char *[2]{
+            "/bin/ls",
+            nullptr,
+        };
+        execv("/bin/ls",args);
     }
     return 0;
 }

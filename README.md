@@ -59,6 +59,8 @@ pip3 install -r requirements.txt
 pip3 install -r requirements.txt -i https://mirror.tuna.tsinghua.edu.cn/pypi/web/simple
 ```
 
+本程序使用 natsort 排序文件，如果你希望获得更好的排序结果，请安装 PyICU，参见 [natsort 上的相关介绍](https://github.com/SethMMorton/natsort?tab=readme-ov-file#pyicu)。
+
 这样就准备好了 Python 环境。
 
 ### 编译沙箱

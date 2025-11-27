@@ -4,23 +4,19 @@ from itertools import chain, islice
 
 from .core import warning
 from .ds import read_test_conf, JudgeConf, Test
-from .utils import is_xok, path_cmp
+from .utils import is_xok, path_cmp2
 
 _checkers = []
 _interactors = []
 _graders = []
 _headers = []
 ANSFILE_EXTS = ("ans", "out")
-def _find_ansfile_strict(path: str):
+def _find_ansfile_strict(path: str) -> bool | list[str]:
     if path.endswith(".in"):
-        ret = []
         dirpath = os.path.dirname(path)
-        for ex in ANSFILE_EXTS:
-            if os.path.isfile(p := os.path.join(dirpath, path[:-3] + ex)):
-                ret.append(p)
-        return ret
+        return [p for ex in ANSFILE_EXTS if os.path.isfile(p := os.path.join(dirpath, path[:-3] + ex))]
     return path.endswith(".ans")
-def _find_ansfile_free(path: str):
+def _find_ansfile_free(path: str) -> None | bool | list[str]:
     dirpath = os.path.dirname(path)
     ret = False
     cwd = os.getcwd()
@@ -81,7 +77,7 @@ def collect_test(src: str, strict = False):
     ret = [tc for dirpath, dirnames, filenames in os.walk(src) for file in filenames if (tc := process_file(os.path.join(dirpath, file), strict))]
     if not ret:
         return None
-    ret.sort(key=lambda x: path_cmp(x[0]))
+    ret.sort(key=path_cmp2(lambda x: x[0]))
     t = Test(tests=ret)
     if os.path.isfile(path := os.path.join(src, "config.json")):
         t.conf = read_test_conf(path)
