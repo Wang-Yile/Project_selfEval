@@ -18,11 +18,12 @@
 - Linux 5.0 以上（对应 Ubuntu 20 以上）
 - Python 3.12 以上
 - GNU GCC 8 以上
-- GNU Make 3.81 以上
 - libseccomp 2.5.0 以上，需要开发包
 - libcap 2.32 以上，需要开发包
 
 建议全部更新到可以更新的最新版本。
+
+如果你使用 Windows，请 [安装 WSL2](https://learn.microsoft.com/zh-cn/windows/wsl/install)。
 
 ### 搭建 Python 环境
 
@@ -67,11 +68,10 @@ pip3 install -r requirements.txt -i https://mirror.tuna.tsinghua.edu.cn/pypi/web
 
 沙箱基于 seccomp-bpf 和 capabilities。
 
-检查 GCC 和 Make 版本：
+检查 GCC 版本：
 
 ```sh
 g++ --version
-make --version
 ```
 
 安装 libseccomp 和 libcap，以 Ubuntu 为例：
@@ -85,27 +85,30 @@ sudo apt install libseccomp-dev
 sudo apt install libcap-dev
 ```
 
-Makefile 包含如下内容，在执行 `make` 前请确认它们：
+沙箱使用脚本 build.py 构建，脚本包含如下可修改的变量：
 
-- SETCAP：控制是否设置能力，设置能力需要管理员权限，默认为是。如果不希望设置能力，请设置 SETCAP 为 0 或者从命令行传入参数 SETCAP=0。
-- COMPILER：指定编译器，默认为 g++-13。你可能需要修改它为你使用的编译器。如果你使用非 GCC 的编译器，请自行研究。
-- ARGS：指定编译参数。如果你在 WSL 中编译，请加入 -DWSL，沙箱将针对 WSL 进行特殊处理。
-- sandbox：主沙箱。
-- sandbox-tiny：简化版沙箱。
-- gen：用于生成 lib.constants 模块的程序。
-- constants.py：将操作系统的一些宏定义常量暴露给 Python 的模块。这个模块会在编译时自动生成。
+- compiler：指定编译器，默认为 g++-13。你可能需要修改它为你使用的编译器。如果你使用非 GCC 的编译器，请自行研究。
+- args：指定默认 C++ 编译选项。如果在 WSL 中编译，脚本将自动添加 `-DWSL` 宏，沙箱将针对 WSL 进行修改。
+- setcap：控制是否设置能力，设置能力需要管理员权限，默认为是。如果不希望设置能力，请从命令行传入参数 `--no-cap`。
 
-确认后，执行：
+脚本将生成如下中间结果：
+
+- build/gen：用于生成 lib.constants 模块的程序。
+- build/constants.py：由 build/gen 生成的临时文件。
+
+脚本将制作如下项目：
+
+- 主沙箱：根据 src/sandbox.cpp 编译 bin/sandbox。
+- 简化版沙箱：根据 src/sandbox-tiny.cpp 编译 bin/sandbox-tiny。
+- 系统常量模块：根据 src/gen.cpp 编译 build/gen，然后从 build/gen 获取 lib/constants.py
+
+执行如下命令即可编译沙箱，你可能需要输入密码以设置可执行文件能力：
 
 ```sh
-make
+python3 build.py
 ```
 
-即可使用 Makefile 编译沙箱。如果 SETCAP=1，你可能需要输入密码以启用 sudo。
-
-源代码存放在 src 目录，编译结果存储到 bin 目录，中间文件存储到 build 目录。
-
-编译完成后，build 目录中的内容可以安全地删除。
+编译完成后，脚本会自动删除 build 目录。
 
 **注意：本程序的沙箱被设计为在非特权环境下工作。建议以普通用户权限运行，避免使用 root。**
 
@@ -151,12 +154,12 @@ make
 
 本项目在如下环境进行过测试：
 
-| 设备名称 | OS | Linux | Python | GCC | libseccomp |
+| 设备名称 | 构建版本 | OS | Linux | Python | GCC |
 | :-: | :-: | :-: | :-: | :-: | :-: |
-| NOILinux 物理机 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.7 | 9.4.0 | 2.5.1 |
-| NOILinux + gcc 13 物理机 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.7 | 13.1.0 | 2.5.1 |
-| Ubuntu 24 虚拟机 | VMWare Workstation 17.6.4 <br> Ubuntu 24.04.3 | 6.14.0-36-generic | 3.12.3 | 13.3.0 | 2.5.5 |
-| WSL2 | Windows 11 25H2 (26200.7171) <br> Ubuntu 24.04 | 5.15.167.4-microsoft-standard-WSL2 | 3.12.3 | 13.3.0 | 2.5.5 |
+| NOILinux 物理机 | rev26 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.7 | 9.4.0 |
+| NOILinux + gcc 13 物理机 | rev26 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.7 | 13.1.0 |
+| Ubuntu 24 虚拟机 | rev25 | VMWare Workstation 17.6.4 <br> Ubuntu 24.04.3 | 6.14.0-36-generic | 3.12.3 | 13.3.0 |
+| WSL2 | rev26 | Windows 11 25H2 (26200.7171) <br> Ubuntu 24.04 | 5.15.167.4-microsoft-standard-WSL2 | 3.12.3 | 13.3.0 |
 
 ## 文档
 
