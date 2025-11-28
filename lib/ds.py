@@ -101,11 +101,13 @@ class Model():
             setattr(self, key, val)
     def _is_ignored(self, key: str):
         return key.startswith("_") or key in self.__class__._ignore
+    def _from_default(self, key: str):
+        return copy.deepcopy(self._default.get(key, ModelNULL))
     def _update(self, key: str, value, /):
         if value is ModelNULL: # 逻辑删除
             if key in self._real:
                 del self._real[key]
-            return super().__setattr__(key, self._default.get(key, ModelNULL))
+            return super().__setattr__(key, self._from_default(key))
         self._real[key] = value
         if (typs := self.__class__.get_types_of(key)) is ModelNULL: # 冗余项
             self.record_extra(key, value)
@@ -117,7 +119,7 @@ class Model():
             if (val := tr.trans(value)) is not ModelNULL: # 转换成功
                 return super().__setattr__(key, val)
         self.record_invalid(key, value)
-        return super().__setattr__(key, self._default.get(key, ModelNULL))
+        return super().__setattr__(key, self._from_default(key))
     def record_extra(self, key: str, value, /):
         if self._record_extra is not None:
             self._record_extra.append((key, value))
@@ -364,6 +366,7 @@ def _read_conf(path: str, /):
         try:
             data = json5.load(file)
         except json.JSONDecodeError as err:
+            err.add_note(f"测试点配置文件 {repr(path)} 无效。")
             error(err, True)
             return
     if isinstance(data, dict):
