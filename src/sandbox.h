@@ -14,10 +14,11 @@ sandbox 和 sandbox-tiny 共用的宏定义、函数和全局变量。
 
 #define TLE_OVERDUE 1
 
+#define TIMER_REDUNDANCY 1000 * 1000
 #ifdef WSL
-#define TIMER_REDUNDANCY 2000000
+#define TIMER_REDUNDANCY_CHILD 200 * 1000
 #else
-#define TIMER_REDUNDANCY 1000000
+#define TIMER_REDUNDANCY_CHILD 50 * 1000
 #endif
 
 #include <sys/resource.h>

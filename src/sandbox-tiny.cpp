@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
         kill(pid, SIGSTOP);
         apply_rlimit();
         execv(prog_path, args);
-        perror("execv");
+        perror("child.execv");
         delete[] args;
         return 128;
     } else if (pid > 0) {

@@ -101,6 +101,7 @@ static inline void add_permission(const fs::path &path, int acc) {
     try {
         p = fs::canonical(path.parent_path());
     } catch (const fs::filesystem_error &e) {
+        cerr << "add_permission: " << e.what() << endl;
         exit(1);
     }
     permission_node *now = &permission_root;
@@ -164,7 +165,7 @@ static inline bool check_fd_operation(int fd, int acc, bool trace_on_prohibition
     try {
         return is_permitted(fs::read_symlink(child_dirfd_path / std::to_string(fd)), acc, trace_on_prohibition);
     } catch (const fs::filesystem_error &e) {
-        cerr << e.what() << endl;
+        cerr << "check_fd_operation: " << e.what() << endl;
         return false;
     }
 }
@@ -180,7 +181,7 @@ static inline bool check_file_operation_at(int dirfd, long addr, int acc, bool t
     try {
         return is_permitted(fs::absolute(fs::read_symlink(child_dirfd_path / std::to_string(dirfd)) / path), acc, trace_on_prohibition);
     } catch (const fs::filesystem_error &e) {
-        cerr << e.what() << endl;
+        cerr << "check_file_operation:" << e.what() << endl;
         return false;
     }
 }
@@ -234,7 +235,10 @@ static inline int install_signalfd() {
     sigemptyset(&mask);
     sigaddset(&mask, SIGCHLD);
     sigprocmask(SIG_BLOCK, &mask, NULL);
-    return signalfd(-1, &mask, SFD_NONBLOCK);
+    int fd = signalfd(-1, &mask, SFD_NONBLOCK);
+    if (fd == -1)
+        perror("signalfd");
+    return fd;
 }
 static inline int install_timerfd(time_t t) {
     struct itimerspec its{
@@ -242,7 +246,21 @@ static inline int install_timerfd(time_t t) {
         .it_value = {.tv_sec = t / 1000000, .tv_nsec = (t % 1000000) * 1000},
     };
     int fd = timerfd_create(CLOCK_MONOTONIC_COARSE, TFD_CLOEXEC);
-    timerfd_settime(fd, 0, &its, nullptr);
+    if (fd == -1) {
+        perror("timerfd_create(CLOCK_MONOTONIC_COARSE)");
+        fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+        if (fd == -1) {
+            perror("timerfd_create(CLOCK_MONOTONIC)");
+            cerr << "error: cannot install timerfd" << endl;
+            return -1;
+        }
+    }
+    if (timerfd_settime(fd, 0, &its, nullptr) == -1) {
+        perror("timerfd_settime");
+        cerr << "error: cannot install timerfd" << endl;
+        close(fd);
+        return -1;
+    }
     return fd;
 }
 static inline void send_fd(int socket, int fd) {
@@ -379,7 +397,7 @@ static inline int tracer(int listener_fd, int signal_fd, int timer_fd) {
         if (poll_result < 0) {
             if (errno == EINTR)
                 continue;
-            perror("poll failed");
+            perror("tracer.poll");
             ret = -1;
             break;
         }
@@ -391,7 +409,7 @@ static inline int tracer(int listener_fd, int signal_fd, int timer_fd) {
                 ret = TLE | TLE_OVERDUE;
                 break;
             } else
-                cerr << "Failed to read from timerfd" << endl;
+                perror("tracer.timerfd");
         }
         if (pfds[1].revents & (POLLIN | POLL_PRI)) {
             signalfd_siginfo siginfo;
@@ -402,7 +420,7 @@ static inline int tracer(int listener_fd, int signal_fd, int timer_fd) {
                         break;
                 }
             } else
-                cerr << "Failed to read from signalfd" << endl;
+                perror("tracer.signalfd");
         }
         if (pfds[0].revents & (POLLIN | POLL_PRI)) {
             memset(notif, 0, sizes.seccomp_notif);
@@ -410,7 +428,7 @@ static inline int tracer(int listener_fd, int signal_fd, int timer_fd) {
             if (ioctl(listener_fd, SECCOMP_IOCTL_NOTIF_RECV, notif) < 0) {
                 if (errno == EINTR)
                     continue;
-                perror("seccomp receive failed");
+                perror("tracer.seccomp.recv");
                 ret = -1;
                 break;
             }
@@ -430,7 +448,7 @@ static inline int tracer(int listener_fd, int signal_fd, int timer_fd) {
                 break;
             }
             if (ioctl(listener_fd, SECCOMP_IOCTL_NOTIF_SEND, resp) < 0) {
-                perror("seccomp send failed");
+                perror("tracer.seccomp.send");
                 ret = -1;
                 break;
             }
@@ -480,7 +498,7 @@ int main(int argc, char *argv[]) {
         cap_get_flag(cap, CAP_SYS_NICE, CAP_EFFECTIVE, &capval);
         if (capval == CAP_SET) {
             if (nice(-20) == -1)
-                perror("set nice");
+                perror("child.nice");
             // sched_param param;
             // param.sched_priority = sched_get_priority_max(SCHED_FIFO);
             // if (sched_setscheduler(pid, SCHED_FIFO, &param) == -1)
@@ -490,13 +508,14 @@ int main(int argc, char *argv[]) {
         send_fd(socket_pair[1], install_filter_raw());
         close(socket_pair[1]);
         itimerval it;
+        time_limit += TIMER_REDUNDANCY_CHILD;
         it.it_value.tv_sec = time_limit / 1000000;
         it.it_value.tv_usec = time_limit % 1000000;
         it.it_interval.tv_sec = it.it_interval.tv_usec = 0;
         tgkill(pid, gettid(), SIGSTOP);
         setitimer(ITIMER_PROF, &it, nullptr); // 如果选手程序处理 SIGPROF，高精度计时器会失效
         execv(prog_path, args);
-        perror("execv failed");
+        perror("child.execv");
         delete[] args;
         return 128;
     } else if (pid > 0) {
@@ -525,8 +544,14 @@ int main(int argc, char *argv[]) {
         kill(pid, SIGSTOP); // 挂起等待进一步指令
         int listener_fd = recv_fd(socket_pair[0]);
         close(socket_pair[0]);
+        if (listener_fd == -1)
+            return 1;
         int signal_fd = install_signalfd();
+        if (signal_fd == -1)
+            return 1;
         int timer_fd = install_timerfd(time_limit + TIMER_REDUNDANCY);
+        if (timer_fd == -1)
+            return 1;
         int ret = tracer(listener_fd, signal_fd, timer_fd);
         if (ret == -1)
             return 1;
@@ -546,7 +571,7 @@ int main(int argc, char *argv[]) {
                     ret = -1;
             }
         } else {
-            perror("waitpid failed");
+            perror("main.waitpid");
             ret = -1;
         }
         time_t t = trans(usage) - start_time;

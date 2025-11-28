@@ -23,6 +23,8 @@ signed main() {
     out << "CAP_PERMITTED = " << CAP_PERMITTED << '\n';
     out << "CAP_INHERITABLE = " << CAP_INHERITABLE << '\n';
     out << "CAP_SET = " << CAP_SET << '\n';
+    out << "\n";
+    out << "# sys/prctl.h\n";
     out << "PR_SET_KEEPCAPS = " << PR_SET_KEEPCAPS << '\n';
     return 0;
 }
