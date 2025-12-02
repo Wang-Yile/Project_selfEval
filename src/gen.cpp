@@ -1,5 +1,7 @@
 #include <fstream>
 
+#include <signal.h>
+
 #include <sys/capability.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
@@ -11,6 +13,9 @@ signed main() {
     out << "Selfeval would use constants below to adapt macros in your Linux/glibc.\n";
     out << "Please DO NOT modify it unless you know what you are doing !\n";
     out << "\"\"\"\n";
+    out << "\n";
+    out << "# signal.h\n";
+    out << "SIGPIPE = " << SIGPIPE << '\n';
     out << "\n";
     out << "# sys/resource.h\n";
     out << "RLIM_INFINITY = " << RLIM_INFINITY << '\n';

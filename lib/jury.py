@@ -7,6 +7,7 @@ from itertools import chain
 
 from . import userconf
 from .core import DEBUG, error
+from .constants import SIGPIPE
 from .ds import Program, ModelNULL, Limit, TestConf, JudgeConf, Verdict, Test
 from .fmt import LiveStream
 from .sandbox import run, run_interactive
@@ -178,8 +179,11 @@ def jury(cwd: str, prog: Program, testconf: TestConf, judgeconf: JudgeConf, infi
         break
     from .sandbox import SIG, MLE, OLE, FBD
     if interactor and (ret_interactor.stat & (SIG | MLE | OLE | FBD)):
-        ret.verdict = "fail"
-        ret.msg = "交互器运行失败 " + repr(ret_interactor)
+        if ret_interactor.stat == SIG | SIGPIPE:
+            ret.verdict = "il"
+        else:
+            ret.verdict = "fail"
+            ret.msg = "交互器运行失败 " + repr(ret_interactor)
     elif interactor and ret_interactor.verdict != "ok":
         ret.verdict, ret.msg, ret.score, _ = read_checklog(ret_interactor, checklog, "交互器")
         if not _ or ret.verdict == "wa":
