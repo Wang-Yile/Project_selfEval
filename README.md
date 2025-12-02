@@ -1,7 +1,7 @@
 # selfeval
 
 > version 1.5.0  
-> 构建版本 rev26  
+> 内部版本 rev26  
 > Copyright (C) 2025 [Yile Wang](mailto:bluewindde@163.com)  
 > 使用 [GNU 通用公共许可证，第三版以上](https://www.gnu.org/licenses/gpl-3.0.html) 发布，不含任何担保。  
 
@@ -25,6 +25,8 @@
 
 如果你使用 Windows，请 [安装 WSL2](https://learn.microsoft.com/zh-cn/windows/wsl/install)。
 
+如果你确认操作系统为 Debian/Ubuntu (基于 Linux 5.0 +)，并安装了 Python 和 GCC，可以运行 `install.sh` 以直接使用推荐配置安装。运行脚本前可以通过指定环境变量 `PY`，选择 Python 解释器路径。
+
 ### 搭建 Python 环境
 
 以下命令如果无特殊说明，均在安装目录下执行。
@@ -33,8 +35,9 @@
 
 ```sh
 python3 --version
-# 要求 3.12 以上
 ```
+
+如果你使用旧版操作系统，例如 NOILinux（Ubuntu 20.04），请考虑 [deadsnakes](https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa) 或 [pyenv](https://github.com/pyenv/pyenv)。
 
 使用如下命令创建 venv：
 
@@ -87,7 +90,7 @@ sudo apt install libcap-dev
 
 沙箱使用脚本 build.py 构建，脚本包含如下可修改的变量：
 
-- compiler：指定编译器，默认为 g++-13。你可能需要修改它为你使用的编译器。如果你使用非 GCC 的编译器，请自行研究。
+- compiler：指定编译器，默认为 g++。你可能需要修改它为你使用的编译器。如果你使用非 GCC 的编译器，请自行研究。
 - args：指定默认 C++ 编译选项。如果在 WSL 中编译，脚本将自动添加 `-DWSL` 宏，沙箱将针对 WSL 进行修改。
 - setcap：控制是否设置能力，设置能力需要管理员权限，默认为是。如果不希望设置能力，请从命令行传入参数 `--no-cap`。
 
@@ -154,7 +157,7 @@ python3 build.py
 
 本项目在如下环境进行过测试：
 
-| 设备名称 | 构建版本 | OS | Linux | Python | GCC |
+| 设备名称 | 内部版本 | OS | Linux | Python | GCC |
 | :-: | :-: | :-: | :-: | :-: | :-: |
 | NOILinux 物理机 | rev26 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.7 | 9.4.0 |
 | NOILinux + gcc 13 物理机 | rev26 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.7 | 13.1.0 |

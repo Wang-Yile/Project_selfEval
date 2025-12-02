@@ -7,7 +7,7 @@ import time
 __st = time.monotonic()
 
 # compiler 指定你的 C++ 编译器，你可能需要修改它为你使用的编译器
-compiler = "g++-13"
+compiler = "g++"
 # 默认的 C++ 编译选项
 args = [
     "-std=c++2a",
@@ -24,7 +24,7 @@ for arg in sys.argv[1:]:
     if arg == "--no-cap":
         setcap = False
     else:
-        print(f"unrecognizable argument: {repr(arg)}")
+        print(f"无法识别参数 {repr(arg)}")
 
 # 判断是否处于 WSL 环境
 if "WSL" in os.uname().release:
@@ -50,7 +50,7 @@ def ensure_removed(path: str):
         else:
             os.remove(path)
     except Exception as err:
-        err.add_note(f"when call ensure_removed({repr(path)})")
+        err.add_note(f"调用 ensure_removed({repr(path)}) 时发生此错误。")
         error(err)
         exit(1)
 def run(cmd: list[str]):
@@ -62,7 +62,7 @@ def run(cmd: list[str]):
         proc = subprocess.run(cmd)
         proc.check_returncode()
     except Exception as err:
-        err.add_note(f"when call run({" ".join(cmd)})")
+        err.add_note(f"调用 run({" ".join(cmd)}) 时发生此错误。")
         error(err)
         exit(1)
 
@@ -92,4 +92,4 @@ run(["cp", os.path.join(build, "constants.py"), os.path.join(lib, "constants.py"
 run(["rm", "-rf", build])
 
 __ed = time.monotonic()
-print(f"Build process takes {__ed-__st:.3f} seconds.")
+print(f"构建过程使用 {__ed-__st:.3f} 秒。")
