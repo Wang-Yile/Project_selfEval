@@ -212,9 +212,11 @@ def jury(cwd: str, prog: Program, testconf: TestConf, judgeconf: JudgeConf, infi
     if not DEBUG:
         shutil.rmtree(wd)
     return ret
-def jury_test(cwd: str, prog: Program, testconf: TestConf, conf: JudgeConf, test: Test, live: LiveStream = None):
+def jury_test(cwd: str, prog: Program, testconf: TestConf, conf: JudgeConf, test: Test, live: LiveStream = None, arg_testconf: TestConf = None):
     if test.conf:
         testconf.update(test.conf)
+    if arg_testconf:
+        testconf.update(arg_testconf)
     jump = False
     for tc in test.tests:
         if jump:

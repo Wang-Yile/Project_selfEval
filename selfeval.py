@@ -77,7 +77,6 @@ def main(source: str, data: list[str], argv: Arguments):
             else:
                 for file in os.listdir(d):
                     process_file(os.path.join(d, file), testcase=False)
-    testconf.update(argv.testconf)
     tests.sort(key=path_cmp2(lambda x: x.tests[0][0]))
     if not tests:
         print("无数据。")
@@ -125,7 +124,7 @@ def main(source: str, data: list[str], argv: Arguments):
         startup_recall()
     live = LiveStream(tests)
     for test in tests:
-        jury_test(cache_path, prog, copy.deepcopy(testconf), problem, test, live)
+        jury_test(cache_path, prog, copy.deepcopy(testconf), problem, test, live, argv.testconf)
     print()
     live.print_conclusion()
 
