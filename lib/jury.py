@@ -170,6 +170,9 @@ def jury(cwd: str, prog: Program, testconf: TestConf, judgeconf: JudgeConf, infi
         if name:
             stdin = os.path.join(wd, name + ".in")
             stdout = os.path.join(wd, name + ".out")
+            if ret.verdict == "ok" and not os.path.isfile(stdout):
+                ret.verdict = "wa"
+                ret.msg = "未找到选手输出文件"
         from .sandbox import TLE
         if ret.verdict == "tl" and not (ret.stat & TLE) and retry > 0:
             if not DEBUG:
