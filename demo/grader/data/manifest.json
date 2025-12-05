@@ -5,6 +5,5 @@
         "limit":{
             "keep":true
         }
-    },
-    "isolate":true
+    }
 }
