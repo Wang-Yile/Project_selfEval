@@ -271,7 +271,7 @@ def ModelDotWrapper():
                     return super().__setattr__(key, value)
                 root, child = split(key)
                 if child is None:
-                    if issubclass(self.__class__.__annotations__.get(key, ModelNULL), Model):
+                    if issubclass(self.__class__.__annotations__.get(key, _ModelNULLType), Model):
                         if key in self._real:
                             for k in value:
                                 setattr(self._real[key], k, getattr(value, k))
