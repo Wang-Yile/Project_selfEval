@@ -184,7 +184,7 @@ class Model():
         从 dic 更新模型。
         """
         if isinstance(dic, dict):
-            return self.update(TestConf.from_dict(dic))
+            return self.update(self.__class__.from_dict(dic))
         for key in dic:
             setattr(self, key, dic.get(key))
     def get_extra_recursive(self, root: str = None):
