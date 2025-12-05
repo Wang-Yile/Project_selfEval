@@ -11,7 +11,7 @@ from typing import Callable, Any
 from natsort import natsort_keygen, ns, NatsortInType
 
 from .color import *
-from .core import CACHE_DISABLED, error, warning
+from .core import cache_disabled, error, warning
 
 # 单位转换
 # 时间基准单位是微秒
@@ -268,7 +268,7 @@ def _cache_hash(files: list[str], args: list[str], info: str):
         return
     return sha512
 def cache_init():
-    if CACHE_DISABLED:
+    if cache_disabled():
         return
     if not os.path.isdir(_cache_dir):
         if os.path.exists(_cache_dir):
@@ -284,7 +284,7 @@ def cache_clear():
     if os.path.exists(_cache_dir):
         ensure_removed(_cache_dir)
 def cache_add(path: str, files: list[str], args: list[str], info: str, /, comment: str = _cache_comment):
-    if CACHE_DISABLED:
+    if cache_disabled():
         return
     cache_init()
     if not os.path.isdir(_cache_dir):
@@ -312,7 +312,7 @@ def cache_add(path: str, files: list[str], args: list[str], info: str, /, commen
         return
 def cache_get(files: list[str], args: list[str], info: str, /, dst: str = None):
     cache_init()
-    if CACHE_DISABLED or not os.path.isdir(_cache_dir):
+    if cache_disabled() or not os.path.isdir(_cache_dir):
         return
     if (sha512 := _cache_hash(files, args, info)) is None:
         return

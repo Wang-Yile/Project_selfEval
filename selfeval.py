@@ -45,21 +45,24 @@ from contextlib import redirect_stdout
 
 from lib.collect import process_file, collect_tests, collect_problem, collected_problem
 from lib.color import *
-from lib.core import VERSION, DEBUG, startup_recall, error, fatal, _remind, tick, tock
-from lib.ds import TestConf, JudgeConf, read_judge_conf, Verdict, Test
+from lib.core import VERSION, BUILD, DEBUG, disable_cache, cache_disabled, startup_recall, error, fatal, tick, tock
+from lib.ds import Model, TestConf, JudgeConf, read_judge_conf, Verdict, Test
 from lib.fmt import LiveStream
 from lib.jury import compile_program, jury_test
 from lib.sandbox import SandboxFatalError
 from lib.utils import fmemory, is_xok, path_cmp2, cache_clear
 
-print(BOLD("selfeval").toansi(), VERSION)
-
 # cache_path = os.path.abspath(".eval")
 cache_path = tempfile.mkdtemp(prefix="selfeval-main-cache-")
 
-cmd_testconf = TestConf()
+class Arguments(Model):
+    remind: bool = True
+    file_list: list[str] = []
+    lang: str = "c++14:O2"
+    testconf: TestConf = TestConf()
+    judgeconf: JudgeConf = JudgeConf()
 
-def main(source: str, data: list[str]):
+def main(source: str, data: list[str], argv: Arguments):
     tests: list[Test] = []
     testconf = TestConf()
     with collect_problem(): # 一般题目只有一个数据文件夹，但是为了实现当前目录下不递归地收集数据，实现成允许收集多个文件夹的方式
@@ -74,7 +77,7 @@ def main(source: str, data: list[str]):
             else:
                 for file in os.listdir(d):
                     process_file(os.path.join(d, file), testcase=False)
-    testconf.update(cmd_testconf)
+    testconf.update(argv.testconf)
     tests.sort(key=path_cmp2(lambda x: x.tests[0][0]))
     if not tests:
         print("无数据。")
@@ -86,6 +89,7 @@ def main(source: str, data: list[str]):
             t = max(t, os.stat(p).st_mtime_ns)
             if (cnf := read_judge_conf(p)) is not None:
                 problem.update(cnf)
+    problem.update(argv.judgeconf)
     if problem.checker and t >= os.stat(problem.checker).st_mtime_ns and is_xok(problem.checker):
         problem.checker = problem.checker_backup
         if problem.checker is None:
@@ -99,7 +103,7 @@ def main(source: str, data: list[str]):
     if problem.name is not None and problem.interactor is not None:
         error("使用文件读写时不能使用交互库。")
         return
-    prog = compile_program(cache_path, source, None, "c++14:O2", problem.headers, problem.graders, False, "program")
+    prog = compile_program(cache_path, source, None, argv.lang, problem.headers, problem.graders, False, "program")
     if prog is None:
         error("编译失败。")
         return
@@ -117,77 +121,125 @@ def main(source: str, data: list[str]):
         if problem.get("interactor") is None:
             error(f"交互库 {interactor} 编译失败。")
             return
-    startup_recall()
+    if argv.remind:
+        startup_recall()
     live = LiveStream(tests)
     for test in tests:
         jury_test(cache_path, prog, copy.deepcopy(testconf), problem, test, live)
     print()
     live.print_conclusion()
 
+def print_header():
+    print(BOLD("selfeval").toansi(), VERSION)
+def help_help():
+    print_header()
+    print("用法：")
+    print(f"  {sys.executable} {sys.argv[0]} [选项] [评测参数] [文件列表...]")
+    print("选项：")
+    print("  -                  该选项之后的参数全部加入文件列表。")
+    print("  -h --help          打印此帮助信息并退出。")
+    print("  -v --version       打印版本信息并退出。")
+    print("     --clean         清除缓存的编译结果。")
+    print("     --no-cache      不缓存编译结果。")
+    print("     --ignore-recall 禁用异常回顾。")
+    print("     --quiet         等效于 --ignore-recall")
+    print("评测参数：")
+    print("     --lang=<tag>    指定选手程序的语言标记，详见文档" + ITALIC("编程语言-语言标记").toansi() + "。")
+    print("覆盖配置文件：")
+    print("     --<key>=<value> 覆盖 TestConf 或 JudgeConf 的任意项目。")
+    print("     --time=<t>      指定时间限制，如 1000000，1s，1.5s，详见文档" + ITALIC("配置文件-时间字面量").toansi() + "。")
+    print("     --memory=<n>    指定空间限制，如 536870912，512M，1GiB，详见文档" + ITALIC("配置文件-空间字面量").toansi() + "。")
+    print("     --name=<name>   启用文件读写并指定文件名。")
+    print("报告问题请到：")
+    print("  <https://github.com/Wang-Yile/Project_selfEval>")
+def help_version():
+    print(BOLD("selfeval").toansi(), VERSION, f"({BUILD})")
+    print("Copyright (C) 2025 Yile Wang")
+    print("本程序是自由软件，不含任何担保。")
+    print("详情见 GNU 通用公共许可证，第三版以上：")
+    print("  <https://www.gnu.org/licenses/gpl-3.0.html>")
+
 def parse_argv(argv: list[str]):
     i = -1
     raw = False
-    lst = []
+    ret = Arguments()
     while True:
         i += 1
         if i == len(argv):
             break
         arg = argv[i]
-        print(repr(arg))
         if raw:
-            lst.append(arg)
+            ret.file_list.append(arg)
             continue
         if not arg.startswith("-"):
-            lst.append(arg)
+            ret.file_list.append(arg)
             continue
         if arg == "-":
             raw = True
         elif arg in ("-h", "--help"):
-            pass
+            help_help()
+            exit()
         elif arg in ("-v", "--version"):
-            pass
+            help_version()
+            exit()
         elif arg == "--clean":
             cache_clear()
-        elif arg == "--ignore-recall":
-            atexit.unregister(_remind)
+        elif arg == "--no-cache":
+            disable_cache()
+        elif arg in ("--ignore-recall", "--quiet"):
+            ret.remind = False
         elif arg.startswith("--") and arg.find("=") != -1:
             key, val = arg[2:].split("=", 1)
-            if cmd_testconf.isvalid(key):
+            if key == "lang":
+                ret.lang = val
+            elif ret.testconf.isvalid(key):
                 if val.isdigit():
                     val = int(val)
-                ori = cmd_testconf.get(key)
-                cmd_testconf._throw_on_invalid = True
+                ori = ret.testconf.get(key)
+                ret.testconf._throw_on_invalid = True
                 try:
-                    setattr(cmd_testconf, key, val)
+                    setattr(ret.testconf, key, val)
                 except ValueError as err:
-                    setattr(cmd_testconf, key, ori)
-                    err.add_note(f"选项 --{key}={val} 无效。")
+                    setattr(ret.testconf, key, ori)
+                    err.add_note(f"测试点配置无法解析的项目 {key} = {repr(val)}")
                     error(err, True)
                 finally:
-                    cmd_testconf._throw_on_invalid = False
+                    ret.testconf._throw_on_invalid = False
+            elif ret.judgeconf.isvalid(key):
+                ori = ret.judgeconf.get(key)
+                ret.judgeconf._throw_on_invalid = True
+                try:
+                    setattr(ret.judgeconf, key, val)
+                except ValueError as err:
+                    setattr(ret.judgeconf, key, ori)
+                    err.add_note(f"评测配置无法解析的项目 {key} = {repr(val)}")
+                    error(err, True)
+                finally:
+                    ret.judgeconf._throw_on_invalid = False
             else:
                 error(f"未知选项 {repr(arg)}", True)
         else:
             error(f"未知选项 {repr(arg)}", True)
-    return lst
+    return ret
 def starter():
-    lst = parse_argv(sys.argv[1:])
+    ret = parse_argv(sys.argv[1:])
+    print_header()
     if os.path.isdir(cache_path):
         shutil.rmtree(cache_path)
     os.mkdir(cache_path)
     if not DEBUG:
         atexit.register(lambda: shutil.rmtree(cache_path))
-    prog = os.path.abspath(lst[0] if lst else "1.cpp")
+    prog = os.path.abspath(ret.file_list[0] if ret.file_list else "1.cpp")
     # data = [os.path.join(os.path.dirname(prog), path) for path in (["data"] if len(lst) < 2 else lst[1:])]
     data = [
         (os.path.abspath("data"), True),
         (os.getcwd(), False),
     ]
-    if len(lst) > 1:
-        for x in range(1, len(lst)):
-            error(f"冗余参数 {repr(lst[x])}")
+    if len(ret.file_list) > 1:
+        for x in ret.file_list[1:]:
+            error(f"冗余参数 {x}")
     try:
-        main(prog, data)
+        main(prog, data, ret)
     except KeyboardInterrupt:
         print()
         print("评测被打断。")

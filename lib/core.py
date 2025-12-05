@@ -9,7 +9,12 @@ import time
 
 from .color import *
 
-CACHE_DISABLED = False
+_CACHE_DISABLED = False
+def disable_cache():
+    global _CACHE_DISABLED
+    _CACHE_DISABLED = True
+def cache_disabled():
+    return _CACHE_DISABLED
 
 DEBUG = False
 DEBUG_DS = False

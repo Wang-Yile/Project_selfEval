@@ -6,7 +6,7 @@ __all__ = [
     "RED", "GREEN", "YELLOW", "BLUE", "MAGENTA", "PURPLE", "CYAN",
     "WHITE", "BLACK", "GRAY", "ORANGE", "PINK", "BROWN", "VIOLET",
     "GOLD", "SILVER", "LIME", "NAVY", "SKYBLUE",
-    "BOLD",
+    "BOLD", "ITALIC",
 ]
 
 import io
@@ -54,6 +54,11 @@ class Bold(Style):
         super().__init__()
         self.ansi = "1"
         self.ansi_rev = "22"
+class Italic(Style):
+    def __init__(self):
+        super().__init__()
+        self.ansi = "3"
+        self.ansi_rev = "23"
 _ansi_colors = {
     # https://www.w3school.com.cn/cssref/css_colors.asp
     "red": "31",
@@ -259,6 +264,7 @@ _lime = Color("lime")
 _navy = Color("navy")
 _skyblue = Color("skyblue")
 _bold = Bold()
+_italic = Italic()
 
 def Red(s: Text | str) -> Text: return s * _red
 def Green(s: Text | str) -> Text: return s * _green
@@ -303,6 +309,7 @@ def SKYBLUE(s: Text | str) -> Text: return s * _skyblue * _bold
 def MARK(s: Text | str, color: str) -> Text: return s * Color(color) * _bold
 
 def BOLD(s: Text | str) -> Text: return s  * _bold
+def ITALIC(s: Text | str) -> Text: return s  * _italic
 
 def plen(s: Text | str) -> Text:
     if isinstance(s, str):
