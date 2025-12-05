@@ -20,11 +20,32 @@ def usec(t: int): return t
 def msec(t: int): return t * 1000
 def sec(t: int): return t * 1000000
 def minute(t: int): return t * 60000000
-def Byte(n: int): return int(n)
-def KiB(n: int): return int(n * 2**10)
-def MiB(n: int): return int(n * 2**20)
-def GiB(n: int): return int(n * 2**30)
-def TiB(n: int): return int(n * 2**40)
+def usecf(t: decimal.Decimal | float): return int(t)
+def msecf(t: decimal.Decimal | float): return int(t * 1000)
+def secf(t: decimal.Decimal | float): return int(t * 1000000)
+def minutef(t: decimal.Decimal | float): return int(t * 60000000)
+def Byte(n: int): return n
+def KiB(n: int): return n << 10
+def MiB(n: int): return n << 20
+def GiB(n: int): return n << 30
+def TiB(n: int): return n << 40
+def PiB(n: int): return n << 50
+def EiB(n: int): return n << 60
+def ZiB(n: int): return n << 70
+def YiB(n: int): return n << 80
+def RiB(n: int): return n << 90
+def QiB(n: int): return n << 100
+def Bytef(n: decimal.Decimal | float): return int(n)
+def KiBf(n: decimal.Decimal | float): return int(n * 2**10)
+def MiBf(n: decimal.Decimal | float): return int(n * 2**20)
+def GiBf(n: decimal.Decimal | float): return int(n * 2**30)
+def TiBf(n: decimal.Decimal | float): return int(n * 2**40)
+def PiBf(n: decimal.Decimal | float): return int(n * 2**50)
+def EiBf(n: decimal.Decimal | float): return int(n * 2**60)
+def ZiBf(n: decimal.Decimal | float): return int(n * 2**70)
+def YiBf(n: decimal.Decimal | float): return int(n * 2**80)
+def RiBf(n: decimal.Decimal | float): return int(n * 2**90)
+def QiBf(n: decimal.Decimal | float): return int(n * 2**100)
 
 # f- 系列格式化函数的逆运算
 # 此部分单位转换函数忽略空格
@@ -44,30 +65,71 @@ def totime(s: str):
     if s.isdigit():
         return int(s)
     sheet = {
-        usec: ("us", "usec", "microsecond"),
-        msec: ("ms", "msec", "millisecond"),
-        sec: ("s", "sec", "second"),
-        minute: ("m", "min", "minute"),
+        "us": (usec, usecf),
+        "usec": (usec, usecf),
+        "microsecond": (usec, usecf),
+        "ms": (msec, msecf),
+        "msec": (msec, msecf),
+        "millisecond": (msec, msecf),
+        "s": (sec, secf),
+        "sec": (sec, secf),
+        "second": (sec, secf),
+        "m": (minute, minutef),
+        "min": (minute, minutef),
+        "minute": (minute, minutef),
     }
-    for foo in sheet:
-        for suffix in sheet[foo]:
-            if s.endswith(suffix) and isnum(t := s[:-len(suffix)]):
-                return int(foo(float(t)))
+    dot = False
+    num = ""
+    unit = ""
+    for i in range(len(s)):
+        if not s[i].isdigit():
+            if s[i] != "." or dot:
+                num = s[:i]
+                unit = s[i:]
+                break
+            dot = True
+    if unit in sheet:
+        return sheet[unit][1](decimal.Decimal(num)) if dot else sheet[unit][0](int(num))
 def tomem(s: str):
     s = s.replace(" ", "")
     if s.isdigit():
         return int(s)
     sheet = {
-        Byte: ("B", "Byte"),
-        KiB: ("K", "KiB"),
-        MiB: ("M", "MiB"),
-        GiB: ("G", "GiB"),
-        TiB: ("T", "TiB"),
+        "B": (Byte, Bytef),
+        "Byte": (Byte, Bytef),
+        "K": (KiB, KiBf),
+        "KiB": (KiB, KiBf),
+        "M": (MiB, MiBf),
+        "miB": (MiB, MiBf),
+        "G": (GiB, GiBf),
+        "GiB": (GiB, GiBf),
+        "T": (TiB, TiBf),
+        "TiB": (TiB, TiBf),
+        "P": (PiB, PiBf),
+        "PiB": (PiB, PiBf),
+        "E": (EiB, EiBf),
+        "EiB": (EiB, EiBf),
+        "Z": (ZiB, ZiBf),
+        "ZiB": (ZiB, ZiBf),
+        "Y": (YiB, YiBf),
+        "YiB": (YiB, YiBf),
+        "R": (RiB, RiBf),
+        "RiB": (RiB, RiBf),
+        "Q": (QiB, QiBf),
+        "QiB": (QiB, QiBf),
     }
-    for foo in sheet:
-        for suffix in sheet[foo]:
-            if s.endswith(suffix) and isnum(t := s[:-len(suffix)]):
-                return int(foo(float(t)))
+    dot = False
+    num = ""
+    unit = ""
+    for i in range(len(s)):
+        if not s[i].isdigit():
+            if s[i] != "." or dot:
+                num = s[:i]
+                unit = s[i:]
+                break
+            dot = True
+    if unit in sheet:
+        return sheet[unit][1](decimal.Decimal(num)) if dot else sheet[unit][0](int(num))
 
 # 格式化
 def ffloat(x: float, prec = 2, eps = 1e-6):
