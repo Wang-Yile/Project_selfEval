@@ -166,7 +166,7 @@ class Model():
         获取模型存储的值。
         """
         return self._real.values()
-    def isvalid(self, key: str):
+    def isvalid(self, key: str, /):
         """
         判断 key 是否是合法的键。
 
@@ -187,7 +187,7 @@ class Model():
             return self.update(self.__class__.from_dict(dic))
         for key in dic:
             setattr(self, key, dic.get(key))
-    def get_extra_recursive(self, root: str = None):
+    def get_extra_recursive(self, root: str = None, /):
         """
         递归获取已记录的冗余项目。
         """
@@ -199,7 +199,7 @@ class Model():
             if (val := self.get(key)) is not ModelNULL and isinstance(val, Model):
                 ret += val.get_extra_recursive(root + key)
         return ret
-    def get_invalid_recursive(self, root: str = None):
+    def get_invalid_recursive(self, root: str = None, /):
         """
         递归获取已记录的无效项目。
         """
@@ -251,7 +251,7 @@ def ModelAliasWrapper(alias: dict[str, str]):
                 if self._is_ignored(key):
                     return super().__setattr__(key, value)
                 return super().__setattr__(trans(key), value)
-            def isvalid(self, key):
+            def isvalid(self, key, /):
                 if self._is_ignored(key):
                     return super().isvalid(key)
                 return super().isvalid(trans(key))
@@ -271,7 +271,14 @@ def ModelDotWrapper():
                     return super().__setattr__(key, value)
                 root, child = split(key)
                 if child is None:
-                    return super().__setattr__(key, value)
+                    if issubclass(self.__class__.__annotations__.get(key, ModelNULL), Model):
+                        if key in self._real:
+                            for k in value:
+                                setattr(self._real[key], k, getattr(value, k))
+                            return
+                        return super().__setattr__(key, value)
+                    else:
+                        return super().__setattr__(key, value)
                 if (v := self.get(root)) is ModelNULL:
                     if (tr := self.__class__._method.get(root, ModelNULL)) is ModelNULL:
                         self.record_invalid(key, value)
@@ -280,10 +287,15 @@ def ModelDotWrapper():
                 if isinstance(v, Model):
                     return setattr(v, child, value)
                 self.record_invalid(key, value)
-            def isvalid(self, key):
+            def isvalid(self, key, /):
                 if self._is_ignored(key):
                     return super().isvalid(key)
                 return super().isvalid(split(key)[0])
+            def update(self, dic: "Model | dict[str, Any]", /):
+                if isinstance(dic, dict):
+                    return self.update(self.__class__.from_dict(dic))
+                for key in dic:
+                    setattr(self, key, dic.get(key))
         return A
     return _wrapper
 
