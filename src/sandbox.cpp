@@ -235,32 +235,15 @@ static inline int install_signalfd() {
     sigemptyset(&mask);
     sigaddset(&mask, SIGCHLD);
     sigprocmask(SIG_BLOCK, &mask, NULL);
-    int fd = signalfd(-1, &mask, SFD_NONBLOCK);
-    if (fd == -1)
-        perror("signalfd");
-    return fd;
+    return signalfd(-1, &mask, SFD_NONBLOCK);
 }
 static inline int install_timerfd(time_t t) {
     struct itimerspec its{
         .it_interval = {0, 0},
         .it_value = {.tv_sec = t / 1000000, .tv_nsec = (t % 1000000) * 1000},
     };
-    int fd = timerfd_create(CLOCK_MONOTONIC_COARSE, TFD_CLOEXEC);
-    if (fd == -1) {
-        perror("timerfd_create(CLOCK_MONOTONIC_COARSE)");
-        fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
-        if (fd == -1) {
-            perror("timerfd_create(CLOCK_MONOTONIC)");
-            cerr << "error: cannot install timerfd" << endl;
-            return -1;
-        }
-    }
-    if (timerfd_settime(fd, 0, &its, nullptr) == -1) {
-        perror("timerfd_settime");
-        cerr << "error: cannot install timerfd" << endl;
-        close(fd);
-        return -1;
-    }
+    int fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+    timerfd_settime(fd, 0, &its, nullptr);
     return fd;
 }
 static inline void send_fd(int socket, int fd) {
@@ -474,7 +457,10 @@ int main(int argc, char *argv[]) {
     int file_cnt = atoi(argv[8]);
     int args_st = 9 + (file_cnt << 1);
     int socket_pair[2];
-    socketpair(AF_UNIX, SOCK_STREAM, 0, socket_pair);
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, socket_pair) == -1) {
+        perror("socketpair");
+        return 1;
+    }
     pid = fork();
     if (pid == 0) {
         pid = getpid();
@@ -515,7 +501,7 @@ int main(int argc, char *argv[]) {
         tgkill(pid, gettid(), SIGSTOP);
         setitimer(ITIMER_PROF, &it, nullptr); // 如果选手程序处理 SIGPROF，高精度计时器会失效
         execv(prog_path, args);
-        perror("child.execv");
+        perror("execv");
         delete[] args;
         return 128;
     } else if (pid > 0) {
@@ -544,17 +530,25 @@ int main(int argc, char *argv[]) {
         kill(pid, SIGSTOP); // 挂起等待进一步指令
         int listener_fd = recv_fd(socket_pair[0]);
         close(socket_pair[0]);
-        if (listener_fd == -1)
+        if (listener_fd == -1) {
+            cerr << "install listenerfd failed" << endl;
             return 1;
+        }
         int signal_fd = install_signalfd();
-        if (signal_fd == -1)
+        if (signal_fd == -1) {
+            cerr << "install signalfd failed" << endl;
             return 1;
+        }
         int timer_fd = install_timerfd(time_limit + TIMER_REDUNDANCY);
-        if (timer_fd == -1)
+        if (timer_fd == -1) {
+            cerr << "install timerfd failed" << endl;
             return 1;
+        }
         int ret = tracer(listener_fd, signal_fd, timer_fd);
-        if (ret == -1)
+        if (ret == -1) {
+            cerr << "trace failed" << endl;
             return 1;
+        }
         if (wait4(child_pid, &status, WUNTRACED, &usage) == child_pid) {
             if (!ret) {
                 if (WIFEXITED(status))
