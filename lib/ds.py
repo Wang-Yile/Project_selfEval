@@ -56,7 +56,7 @@ class ModelTransform():
         return foo
     def __init_subclass__(cls):
         cls.__slots__ = ()
-class ModelDirectTransform(ModelTransform):
+class ModelDirectTransform(ModelTransform): # TODO
     _method: dict[type, Callable[[Any], Any]] = {}
 class ModelTransformToBool(ModelTransform):
     _method = [(str, ModelTransform.decorate_none_to_null(tobool))]
@@ -71,7 +71,7 @@ class ModelTransformFmtMemory(ModelTransform):
 
 class Model():
     _method: dict[str, ModelTransform] = {}
-    _export: dict[str, ModelDirectTransform] = {}
+    _export: dict[str, ModelDirectTransform] = {} # TODO
     _ignore: set = set()
     @classmethod
     def get_types_of(cls, key: str) -> _ModelNULLType | tuple[Any, ...]:
@@ -215,6 +215,24 @@ class Model():
             if (val := self.get(key)) is not ModelNULL and isinstance(val, Model):
                 ret += val.get_invalid_recursive(root + key)
         return ret
+    def enable_record_extra(self):
+        """
+        递归启用冗余记录。
+        """
+        if self._record_extra is None:
+            self._record_extra = []
+        for key in self.__class__.__annotations__:
+            if (val := self.get(key)) is not ModelNULL and isinstance(val, Model):
+                val.enable_record_extra()
+    def enable_record_invalid(self):
+        """
+        递归启用无效项目记录。
+        """
+        if self._record_invalid is None:
+            self._record_invalid = []
+        for key in self.__class__.__annotations__:
+            if (val := self.get(key)) is not ModelNULL and isinstance(val, Model):
+                val.enable_record_invalid()
     @classmethod
     def from_dict(cls, dic: dict[str, Any], /, record_extra = False, record_invalid = False, strict = True, prohibit: set[str] = None):
         ret = cls()
@@ -291,12 +309,10 @@ def ModelDotWrapper():
                     if v is ModelNULL:
                         raise ValueError(f"空字典应当被转换为空模型，但 {tr.__class__.__qualname__} 没有这样操作。")
                     v: Model
-                    if self._record_extra is not None: # TODO enable/disable record extra
-                        if v._record_extra is None:
-                            v._record_extra = []
+                    if self._record_extra is not None:
+                        v.enable_record_extra()
                     if self._record_invalid is not None:
-                        if v._record_invalid is None:
-                            v._record_invalid = []
+                        v.enable_record_invalid()
                     self._set_value(root, v)
                 if isinstance(v, Model):
                     return setattr(v, child, value)
