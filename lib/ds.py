@@ -434,7 +434,7 @@ def read_test_conf(path: str, /):
     for key, val in ret._record_invalid:
         error(f"测试点配置文件 {repr(path)} 中有无法解析的项目 {key} = {repr(val)}", True)
     from . import userconf
-    if userconf.UserWarn.warn_limit:
+    if userconf.UserWarn.limit:
         _check_limit(path, ret.limit)
     return ret
 def read_judge_conf(path: str, /):
@@ -446,7 +446,7 @@ def read_judge_conf(path: str, /):
     for key, val in ret.get_invalid_recursive():
         error(f"评测配置文件 {repr(path)} 中有无法解析的项目 {key} = {repr(val)}", True)
     from . import userconf
-    if userconf.UserWarn.warn_checker_limit:
+    if userconf.UserWarn.checker_limit:
         _check_limit(path, ret.checker_conf.limit)
     return ret
 class Verdict():

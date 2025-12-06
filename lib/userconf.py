@@ -1,8 +1,8 @@
 from .ds import Model
 
 class _UserWarnConf(Model):
-    warn_limit: bool = True
-    warn_checker_limit: bool = True
+    limit: bool = True
+    checker_limit: bool = True
 UserWarn = _UserWarnConf()
 
 class _UserJudgeConf(Model):
