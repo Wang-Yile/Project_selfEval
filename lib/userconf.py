@@ -1,5 +1,12 @@
 from .ds import Model
 
+class _UserApperanceConf(Model):
+    remind: bool = True
+    conclusion: bool = True
+    exmsg: bool = True
+    lang: str = "c++14:O2"
+UserApperance = _UserApperanceConf()
+
 class _UserWarnConf(Model):
     limit: bool = True
     checker_limit: bool = True

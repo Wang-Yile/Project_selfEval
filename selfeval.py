@@ -50,7 +50,7 @@ from lib.ds import Model, TestConf, JudgeConf, read_judge_conf, Verdict, Test
 from lib.fmt import LiveStream
 from lib.jury import compile_program, jury_test
 from lib.sandbox import SandboxFatalError
-from lib.userconf import UserWarn, UserJudge, UserInteractor
+from lib.userconf import UserApperance, UserWarn, UserJudge, UserInteractor
 from lib.utils import fmemory, is_xok, path_cmp2, cache_clear
 
 # cache_path = os.path.abspath(".eval")
@@ -59,7 +59,7 @@ cache_path = tempfile.mkdtemp(prefix="selfeval-main-cache-")
 class Arguments(Model):
     remind: bool = True
     file_list: list[str] = []
-    lang: str = "c++14:O2"
+    lang: str = UserApperance.lang
     testconf: TestConf = TestConf()
     judgeconf: JudgeConf = JudgeConf()
 
@@ -121,13 +121,14 @@ def main(source: str, data: list[str], argv: Arguments):
         if problem.get("interactor") is None:
             error(f"交互库 {interactor} 编译失败。")
             return
-    if argv.remind:
+    if argv.remind and UserApperance.remind:
         startup_recall()
     live = LiveStream(tests)
     for test in tests:
         jury_test(cache_path, prog, copy.deepcopy(testconf), problem, test, live, argv.testconf)
-    print()
-    live.print_conclusion()
+    if UserApperance.conclusion:
+        print()
+        live.print_conclusion()
 
 def print_header():
     print(BOLD("selfeval").toansi(), VERSION)
@@ -194,6 +195,9 @@ def parse_argv(argv: list[str]):
             exit()
         elif arg in ("-e", "--exercise"):
             UserInteractor.echo = True
+            UserApperance.remind = False
+            UserApperance.conclusion = False
+            UserApperance.exmsg = False
         elif arg == "--clean":
             cache_clear()
         elif arg == "--no-cache":
@@ -291,13 +295,14 @@ if __name__ == "__main__":
     except SandboxFatalError as err:
         fatal(err)
         exit(2)
-    t = tock("用时")
-    mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
-    print("内存用量", fmemory(mem))
-    if (p := os.environ.get("SELFEVAL_DEBUG_AUTO", None)) is not None:
-        with (
-            open(p, "w") as file,
-            redirect_stdout(file),
-        ):
-            print(t)
-            print(mem)
+    if UserApperance.exmsg:
+        t = tock("用时")
+        mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+        print("内存用量", fmemory(mem))
+        if (p := os.environ.get("SELFEVAL_DEBUG_AUTO", None)) is not None:
+            with (
+                open(p, "w") as file,
+                redirect_stdout(file),
+            ):
+                print(t)
+                print(mem)
