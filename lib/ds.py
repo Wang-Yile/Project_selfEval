@@ -99,15 +99,19 @@ class Model():
             if key.startswith("_"):
                 raise TypeError(f"{self.__class__.__qualname__} 不支持下划线开头的键 {key} = {repr(val)}")
             setattr(self, key, val)
-    def _is_ignored(self, key: str):
+    def _is_ignored(self, key: str, /):
         return key.startswith("_") or key in self.__class__._ignore
-    def _from_default(self, key: str):
+    def _from_default(self, key: str, /):
         return copy.deepcopy(self._default.get(key, ModelNULL))
+    def _set_value(self, key: str, value, /):
+        return object.__setattr__(self, key, value)
+    def _set_default(self, key: str, /):
+        return self._set_value(key, self._from_default(key))
     def _update(self, key: str, value, /):
         if value is ModelNULL: # 逻辑删除
             if key in self._real:
                 del self._real[key]
-            return super().__setattr__(key, self._from_default(key))
+            return self._set_default(key)
         self._real[key] = value
         if (typs := self.__class__.get_types_of(key)) is ModelNULL: # 冗余项
             self.record_extra(key, value)
@@ -119,19 +123,19 @@ class Model():
             if (val := tr.trans(value)) is not ModelNULL: # 转换成功
                 return super().__setattr__(key, val)
         self.record_invalid(key, value)
-        return super().__setattr__(key, self._from_default(key))
+        return self._set_default(key)
     def record_extra(self, key: str, value, /):
         if self._record_extra is not None:
             self._record_extra.append((key, value))
-        elif DEBUG_DS:
-            warning(f"未记录的冗余项目 {repr(key)} = {repr(value)}")
+        if DEBUG_DS:
+            warning(f"冗余项目 {repr(key)} = {repr(value)}")
         if self._throw_on_extra:
             raise ValueError(f"冗余项目 {repr(key)} = {repr(value)}")
     def record_invalid(self, key: str, value, /):
         if self._record_invalid is not None:
             self._record_invalid.append((key, value))
-        elif DEBUG_DS:
-            error(f"未记录的无效项目 {repr(key)} = {repr(value)}")
+        if DEBUG_DS:
+            error(f"无效项目 {repr(key)} = {repr(value)}")
         if self._throw_on_invalid:
             raise ValueError(f"冗余项目 {repr(key)} = {repr(value)}")
     def __setattr__(self, key: str, value):
@@ -275,18 +279,29 @@ def ModelDotWrapper():
                         if key in self._real:
                             for k in value:
                                 setattr(self._real[key], k, getattr(value, k))
-                            return
+                            return super().__setattr__(key, self._real[key])
                         return super().__setattr__(key, value)
                     else:
                         return super().__setattr__(key, value)
                 if (v := self.get(root)) is ModelNULL:
                     if (tr := self.__class__._method.get(root, ModelNULL)) is ModelNULL:
                         self.record_invalid(key, value)
-                        return
+                        return self._set_default(root)
                     self._real[root] = v = tr.trans({})
+                    if v is ModelNULL:
+                        raise ValueError(f"空字典应当被转换为空模型，但 {tr.__class__.__qualname__} 没有这样操作。")
+                    v: Model
+                    if self._record_extra is not None: # TODO enable/disable record extra
+                        if v._record_extra is None:
+                            v._record_extra = []
+                    if self._record_invalid is not None:
+                        if v._record_invalid is None:
+                            v._record_invalid = []
+                    self._set_value(root, v)
                 if isinstance(v, Model):
                     return setattr(v, child, value)
                 self.record_invalid(key, value)
+                return self._set_default(root)
             def isvalid(self, key, /):
                 if self._is_ignored(key):
                     return super().isvalid(key)
