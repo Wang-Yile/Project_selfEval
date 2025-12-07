@@ -7,6 +7,7 @@ import tempfile
 import threading
 
 from . import userconf
+from .color import *
 from .constants import RLIM_INFINITY
 from .core import DEBUG_SANDBOX, acquire_cpu, release_cpu, error, warning
 from .ds import Program, Limit, Verdict
@@ -48,10 +49,9 @@ def relay(src: int, dst: int, side: int):
                 pass
             else:
                 if side:
-                    sys.stdout.write("\033[2;3m")
-                sys.stdout.write(s)
-                if side:
-                    sys.stdout.write("\033[0m")
+                    sys.stdout.write(Tianyi(s).toansi())
+                else:
+                    sys.stdout.write(s)
                 sys.stdout.flush()
             try:
                 os.write(dst, data)

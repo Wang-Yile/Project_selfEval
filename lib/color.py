@@ -1,17 +1,54 @@
 __all__ = [
+    "is_colorful", "enable_color", "disable_color", "detect_color",
+    "autoset_color",
     "RGB", "Text", "MARK", "Mark", "plen",
     "Red", "Green", "Yellow", "Blue", "Magenta", "Purple", "Cyan",
     "White", "Black", "Gray", "Orange", "Pink", "Brown", "Violet",
-    "Gold", "Silver", "Lime", "Navy", "Skyblue",
+    "Gold", "Silver", "Lime", "Navy", "Skyblue", "Tianyi",
     "RED", "GREEN", "YELLOW", "BLUE", "MAGENTA", "PURPLE", "CYAN",
     "WHITE", "BLACK", "GRAY", "ORANGE", "PINK", "BROWN", "VIOLET",
-    "GOLD", "SILVER", "LIME", "NAVY", "SKYBLUE",
+    "GOLD", "SILVER", "LIME", "NAVY", "SKYBLUE", "TIANYI",
     "BOLD", "ITALIC",
 ]
 
 import io
+import os
+import sys
 
 from wcwidth import wcswidth
+
+_COLOR_DISABLED = False
+def is_colorful():
+    return not _COLOR_DISABLED
+def enable_color():
+    global _COLOR_DISABLED
+    _COLOR_DISABLED = False
+def disable_color():
+    global _COLOR_DISABLED
+    _COLOR_DISABLED = True
+# 更新此函数时需要同步更新 build.py 中的函数
+def detect_color():
+    if not sys.stdout.isatty():
+        return False
+    if "NO_COLOR" in os.environ:
+        return False
+    term = os.environ.get("TERM")
+    if not term or term == "dumb":
+        return False
+    colorterm = os.environ.get("COLORTERM")
+    if colorterm == "truecolor" or colorterm == "24bit":
+        return True
+    # term_prog = os.environ.get("TERM_PROGRAM")
+    # term_prog_version = os.environ.get("TERM_PROGRAM_VERSION")
+    vte = os.environ.get("VTE_VERSION", "")
+    if vte.isdigit() and int(vte) >= 3600: # VTE 0.36.0 开始实验性支持真彩色
+        return True
+    return False
+def autoset_color():
+    if detect_color():
+        enable_color()
+    else:
+        disable_color()
 
 class Style:
     __slots__ = ("ansi", "ansi_rev")
@@ -88,6 +125,8 @@ _ansi_colors = {
     "plum": "38;2;221;160;221",
     "orchid": "38;2;218;112;214",
     "skyblue": "38;2;135;206;235",
+    # 扩展颜色
+    "tianyi": "38;2;102;204;255",
     # 补充其它 CSS 颜色（AI 生成）
     "indigo": "38;2;75;0;130",
     "lavender": "38;2;230;230;250",
@@ -203,7 +242,7 @@ class Text():
     def __copy__(self):
         return self.copy()
     def toansi(self):
-        if not self.tags:
+        if _COLOR_DISABLED or not self.tags:
             return self.s
         tags: list[tuple[int, str]] = []
         for tag in self.tags:
@@ -263,6 +302,7 @@ _silver = Color("silver")
 _lime = Color("lime")
 _navy = Color("navy")
 _skyblue = Color("skyblue")
+_tianyi = Color("tianyi")
 _bold = Bold()
 _italic = Italic()
 
@@ -285,6 +325,7 @@ def Silver(s: Text | str) -> Text: return s * _silver
 def Lime(s: Text | str) -> Text: return s * _lime
 def Navy(s: Text | str) -> Text: return s * _navy
 def Skyblue(s: Text | str) -> Text: return s * _skyblue
+def Tianyi(s: Text | str) -> Text: return s * _tianyi
 def Mark(s: Text | str, color: str) -> Text: return s * Color(color)
 
 def RED(s: Text | str) -> Text: return s * _red * _bold
@@ -306,6 +347,7 @@ def SILVER(s: Text | str) -> Text: return s * _silver * _bold
 def LIME(s: Text | str) -> Text: return s * _lime * _bold
 def NAVY(s: Text | str) -> Text: return s * _navy * _bold
 def SKYBLUE(s: Text | str) -> Text: return s * _skyblue * _bold
+def TIANYI(s: Text | str) -> Text: return s * _tianyi * _bold
 def MARK(s: Text | str, color: str) -> Text: return s * Color(color) * _bold
 
 def BOLD(s: Text | str) -> Text: return s  * _bold

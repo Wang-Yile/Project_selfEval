@@ -30,16 +30,23 @@ for arg in sys.argv[1:]:
 if "WSL" in os.uname().release:
     args.append("-DWSL")
 
-colorful = False
-if sys.stdout.isatty() and "NO_COLOR" not in os.environ:
-    if (term := os.environ.get("TERM", "")) != "dumb":
-        if term:
-            colorful = any(x in term for x in [
-                "xterm-color", "xterm-256color", "screen-256color", "vt100", "vt220", "ansi", "linux", "cygwin",
-                "color", "256color", "24bit",
-            ])
-        elif colorterm := os.environ.get("COLORTERM", ""):
-            colorful = True
+# 此函数跟随 lib.color 更新
+def detect_color():
+    if not sys.stdout.isatty():
+        return False
+    if "NO_COLOR" in os.environ:
+        return False
+    term = os.environ.get("TERM")
+    if not term or term == "dumb":
+        return False
+    colorterm = os.environ.get("COLORTERM")
+    if colorterm == "truecolor" or colorterm == "24bit":
+        return True
+    vte = os.environ.get("VTE_VERSION")
+    if vte.isdigit() and int(vte) >= 3600: # VTE 0.36.0 开始实验性支持真彩色
+        return True
+    return False
+colorful = detect_color()
 def error(err: Exception):
     if hasattr(err, "__notes__"):
         for line in reversed(err.__notes__):

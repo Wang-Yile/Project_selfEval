@@ -289,6 +289,7 @@ def starter():
         print("评测被打断。")
 
 if __name__ == "__main__":
+    autoset_color()
     tick()
     try:
         starter()
