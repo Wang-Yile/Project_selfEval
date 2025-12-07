@@ -164,9 +164,9 @@ def jury(cwd: str, prog: Program, testconf: TestConf, judgeconf: JudgeConf, infi
         if (interactor := judgeconf.interactor):
             checklog = get_unique_path(wd)
             permissions.append((checklog, 1))
-            ret, ret_interactor = run_interactive(prog, interactor, testconf.limit, wd, None, stdin, stdout, subprocess.DEVNULL, checklog, None, permissions, trust_interactor=judgeconf.checker_conf.safe)
+            ret, ret_interactor = run_interactive(prog, interactor, testconf.limit, wd, None, stdin, stdout, None if userconf.UserJudge.stderr else subprocess.DEVNULL, checklog, None, permissions, trust_interactor=judgeconf.checker_conf.safe)
         else:
-            ret = run(prog, testconf.limit, wd, None, stdin, stdout, subprocess.DEVNULL, permissions)
+            ret = run(prog, testconf.limit, wd, None, stdin, stdout, None if userconf.UserJudge.stderr else subprocess.DEVNULL, permissions)
         if name:
             stdin = os.path.join(wd, name + ".in")
             stdout = os.path.join(wd, name + ".out")

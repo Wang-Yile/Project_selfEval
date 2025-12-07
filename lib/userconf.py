@@ -16,6 +16,7 @@ class _UserJudgeConf(Model):
     # testlib: str = "/home/noilinux/selfeval/testlib.h"
     testlib: str
     isolate: bool = True
+    stderr: bool = False
 UserJudge = _UserJudgeConf()
 
 class _UserInteractorConf(Model):

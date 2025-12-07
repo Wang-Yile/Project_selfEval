@@ -198,6 +198,7 @@ def parse_argv(argv: list[str]):
             UserApperance.remind = False
             UserApperance.conclusion = False
             UserApperance.exmsg = False
+            UserJudge.stderr = True
         elif arg == "--clean":
             cache_clear()
         elif arg == "--no-cache":
