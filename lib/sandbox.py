@@ -51,7 +51,7 @@ def relay(src: int, dst: int, side: int):
                 if side:
                     sys.stdout.write(Tianyi(s).toansi())
                 else:
-                    sys.stdout.write(Silver(s).toansi())
+                    sys.stdout.write(Gold(s).toansi())
                 sys.stdout.flush()
             try:
                 os.write(dst, data)
