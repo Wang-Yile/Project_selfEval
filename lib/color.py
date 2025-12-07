@@ -14,6 +14,7 @@ __all__ = [
 import io
 import os
 import sys
+from typing import overload
 
 from wcwidth import wcswidth
 
@@ -218,9 +219,42 @@ class Color(Style):
         self.ansi = _ansi_colors[c]
         self.ansi_rev = "39"
 class RGB(Style):
-    def __init__(self, r: float | int, g: float | int, b: float | int, /):
+    @overload
+    def __init__(self, r: int, g: int, b: int, /): ...
+    @overload
+    def __init__(self, hex: str | int, /): ...
+    def __init__(self, *args):
         super().__init__()
-        self.ansi = f"38;2;{int(r)};{int(g)};{int(b)}"
+        if len(args) == 1:
+            if isinstance(x := args[0], str):
+                if x.startswith("#"):
+                    x = x[1:]
+                if len(x) == 3:
+                    x = int(x, 16)
+                    r = (x >> 8) & 0xf
+                    g = (x >> 4) & 0xf
+                    b = x & 0xf
+                    r = r << 4 | r
+                    g = g << 4 | g
+                    b = b << 4 | b
+                elif len(x) == 6:
+                    x = int(x, 16)
+                    r = (x >> 16) & 0xff
+                    g = (x >> 8) & 0xff
+                    b = x & 0xff
+                else:
+                    raise ValueError("不是合法的十六进制颜色字符串。")
+            elif isinstance(x, int):
+                r = (x >> 16) & 0xff
+                g = (x >> 8) & 0xff
+                b = x & 0xff
+            else:
+                raise ValueError(f"期望 int 或 str，而不是 {type(x)}")
+        elif len(args) == 3:
+            r, g, b = args
+        else:
+            raise TypeError(f"期望 1 或 3 个参数，而不是 {len(args)} 个。")
+        self.ansi = f"38;2;{r};{g};{b}"
         self.ansi_rev = "39"
 class Span():
     __slots__ = ("l", "r", "style")
