@@ -30,7 +30,16 @@ for arg in sys.argv[1:]:
 if "WSL" in os.uname().release:
     args.append("-DWSL")
 
-colorful = os.environ.get("COLORTERM")
+colorful = False
+if sys.stdout.isatty() and "NO_COLOR" not in os.environ:
+    if (term := os.environ.get("TERM", "")) != "dumb":
+        if term:
+            colorful = any(x in term for x in [
+                "xterm-color", "xterm-256color", "screen-256color", "vt100", "vt220", "ansi", "linux", "cygwin",
+                "color", "256color", "24bit",
+            ])
+        elif colorterm := os.environ.get("COLORTERM", ""):
+            colorful = True
 def error(err: Exception):
     if hasattr(err, "__notes__"):
         for line in reversed(err.__notes__):
