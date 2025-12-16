@@ -40,6 +40,7 @@ import shutil
 import sys
 import tempfile
 from contextlib import redirect_stdout
+from itertools import islice
 
 # import argcomplete
 # import rich.traceback
@@ -48,7 +49,7 @@ from contextlib import redirect_stdout
 from lib.collect import process_file, collect_tests, collect_problem, collected_problem
 from lib.color import *
 from lib.constants import RLIM_INFINITY
-from lib.core import VERSION, BUILD, DEBUG, enable_cache, disable_cache, cache_disabled, startup_recall, error, fatal, tick, tock
+from lib.core import VERSION, BUILD, DEBUG, enable_cache, disable_cache, cache_disabled, startup_recall, error, fatal, warning, tick, tock
 from lib.ds import Model, TestConf, JudgeConf, read_judge_conf, Verdict, Test
 from lib.fmt import LiveStream
 from lib.jury import compile_program, jury_test
@@ -133,7 +134,7 @@ def main(source: str, data: list[str], argv: Arguments):
                         process_file(p, testcase=False)
     tests.sort(key=path_cmp2(lambda x: x.tests[0][0]))
     if not tests:
-        print("无数据。")
+        print("没有数据。")
         return
     problem = collected_problem()
     t = 0
@@ -185,39 +186,6 @@ def main(source: str, data: list[str], argv: Arguments):
 
 def print_header():
     print(BOLD("selfeval").toansi(), VERSION)
-def help_help():
-    print_header()
-    print("用法：")
-    print(f"  {sys.executable} {sys.argv[0]} [选项] [评测参数] [文件列表...]")
-    print("文件列表中的目录/指向目录的符号链接将作为数据文件夹，并代替默认数据文件夹 data/")
-    print("选项：")
-    print("  -                  该选项之后的参数全部加入文件列表。")
-    print("  -h --help          打印此帮助信息并退出。")
-    print("  -v --version       打印版本信息并退出。")
-    print("  -e --exercise      进入练习模式。")
-    print("     --clean         清除缓存的编译结果。")
-    print("     --no-cache      不缓存编译结果。")
-    print("     --ignore-recall 禁用异常回顾。")
-    print("     --quiet         等效于 --ignore-recall")
-    print("  -W -w              打开/关闭警告选项。")
-    print("                     例如通过 -w limit 关闭对配置文件中不合理项目的警告。")
-    print("  -I -i              打开/关闭交互选项。")
-    print("                     例如通过 -I echo 打开交互过程回显。")
-    print("评测参数：")
-    print("     --lang=<tag>    指定选手程序的语言标记，详见文档" + ITALIC("编程语言-语言标记").toansi() + "。")
-    print("     --isolate       启用核心隔离。（默认启用）")
-    print("     --expose        关闭核心隔离。")
-    print("     --stderr        回显选手程序的标准错误流。")
-    print("     --no-stderr     不回显选手程序的标准错误流。（默认不回显）")
-    print("评测配置：")
-    print("     --testlib       使用工作目录下的 testlib.h")
-    print("     --testlib=<p>   指定 testlib 路径。")
-    print("     --time=<t>      指定时间限制，如 1000000，1s，1.5s，详见文档" + ITALIC("配置文件-时间字面量").toansi() + "。")
-    print("     --memory=<n>    指定空间限制，如 536870912，512M，1GiB，详见文档" + ITALIC("配置文件-空间字面量").toansi() + "。")
-    print("     --name=<name>   启用文件读写并指定文件名。")
-    print("     --<key>=<value> 覆盖 TestConf 或 JudgeConf 的任意项目。")
-    print("报告问题请到：")
-    print("  <https://github.com/Wang-Yile/Project_selfEval>")
 def help_version():
     print(BOLD("selfeval").toansi(), VERSION, f"({BUILD})")
     print("Copyright (C) 2025 Yile Wang")
@@ -225,128 +193,6 @@ def help_version():
     print("详情见 GNU 通用公共许可证，第三版以上：")
     print("  <https://www.gnu.org/licenses/gpl-3.0.html>")
 
-def parse_argv(argv: list[str]):
-    i = -1
-    raw = False
-    ret = Arguments()
-    while True:
-        i += 1
-        if i == len(argv):
-            break
-        def get_arg(prompt: str):
-            nonlocal i
-            i += 1
-            if i == len(argv):
-                error(f"没有为选项 {prompt} 提供参数。")
-                return
-            return argv[i]
-        arg = argv[i]
-        if raw or not arg.startswith("-"):
-            if not os.path.exists(arg):
-                error(f"路径 {repr(arg)} 不存在。")
-            arg = os.path.realpath(arg)
-            if os.path.isdir(arg):
-                ret.dir_list.append(arg)
-            else:
-                ret.file_list.append(arg)
-            continue
-        unknown = False
-        if arg == "-":
-            raw = True
-        elif arg in ("-h", "--help"):
-            help_help()
-            exit()
-        elif arg in ("-v", "--version"):
-            help_version()
-            exit()
-        elif arg in ("-e", "--exercise"):
-            UserInteractor.echo = True
-            UserApperance.remind = False
-            UserApperance.conclusion = False
-            UserApperance.exmsg = False
-            UserJudge.stderr = True
-        elif arg == "--clean":
-            cache_clear()
-        elif arg == "--no-cache":
-            disable_cache()
-        elif arg in ("--ignore-recall", "--quiet"):
-            ret.remind = False
-        elif arg.startswith("-W") or arg.startswith("-w"):
-            if len(arg) == 2:
-                if (key := get_arg(arg)) is None:
-                    break
-            else:
-                key = arg[2:]
-            if UserWarn.isvalid(key):
-                setattr(UserWarn, key, arg[1] == "W")
-            else:
-                unknown = True
-        elif arg.startswith("-I") or arg.startswith("-i"):
-            if len(arg) == 2:
-                if (key := get_arg(arg)) is None:
-                    break
-            else:
-                key = arg[2:]
-            if UserInteractor.isvalid(key):
-                setattr(UserInteractor, key, arg[1] == "I")
-            else:
-                unknown = True
-        elif arg == "--isolate":
-            UserJudge.isolate = True
-        elif arg == "--expose":
-            UserJudge.isolate = False
-        elif arg == "--stderr":
-            UserJudge.stderr = True
-        elif arg == "--no-stderr":
-            UserJudge.stderr = False
-        elif arg == "--testlib":
-            if os.path.isfile(p := os.path.realpath(os.path.abspath("testlib.h"))):
-                UserJudge.testlib = p
-            else:
-                error(f"当前目录下不存在 testlib.h", True)
-        elif arg.startswith("--") and arg.find("=") != -1:
-            key, val = arg[2:].split("=", 1)
-            if key == "lang":
-                ret.lang = val
-            elif key == "testlib":
-                try:
-                    if os.path.isfile(p := os.path.realpath(os.path.abspath(val))):
-                        UserJudge.testlib = p
-                    else:
-                        error(f"指定的 testlib 路径 {repr(val)} 无效。", True)
-                except OSError:
-                    error(f"指定的 testlib 路径 {repr(val)} 无效。", True)
-            elif ret.testconf.isvalid(key):
-                if val.isdigit():
-                    val = int(val)
-                ori = ret.testconf.get(key)
-                ret.testconf._throw_on_invalid = True
-                try:
-                    setattr(ret.testconf, key, val)
-                except ValueError as err:
-                    setattr(ret.testconf, key, ori)
-                    err.add_note(f"测试点配置无法解析的项目 {key} = {repr(val)}")
-                    error(err, True)
-                finally:
-                    ret.testconf._throw_on_invalid = False
-            elif ret.judgeconf.isvalid(key):
-                ori = ret.judgeconf.get(key)
-                ret.judgeconf._throw_on_invalid = True
-                try:
-                    setattr(ret.judgeconf, key, val)
-                except ValueError as err:
-                    setattr(ret.judgeconf, key, ori)
-                    err.add_note(f"评测配置无法解析的项目 {key} = {repr(val)}")
-                    error(err, True)
-                finally:
-                    ret.judgeconf._throw_on_invalid = False
-            else:
-                unknown = True
-        else:
-            unknown = True
-        if unknown:
-            error(f"未知选项 {repr(arg)}", True)
-    return ret
 def parse_argv2(argv: list[str]):
     parser = create_parser()
     # argcomplete.autocomplete(parser)
@@ -437,16 +283,23 @@ def starter():
     os.mkdir(cache_path)
     if not DEBUG:
         atexit.register(lambda: shutil.rmtree(cache_path))
-    prog = os.path.abspath(ret.file_list[0] if ret.file_list else "1.cpp")
-    # data = [os.path.join(os.path.dirname(prog), path) for path in (["data"] if len(lst) < 2 else lst[1:])]
+    if not ret.file_list:
+        if os.path.isfile(p := os.path.realpath(os.path.abspath("1.cpp"))):
+            prog = p
+        else:
+            print("没有源程序。")
+            return
+    else:
+        prog = ret.file_list[0]
+        if len(ret.file_list) > 1:
+            for x in islice(ret.file_list, 1, None):
+                warning(f"冗余文件 {repr(x)}")
+    if not ret.dir_list and os.path.isdir(p := os.path.realpath(os.path.abspath("data"))):
+        ret.dir_list.append(p)
     data = [
-        (os.path.abspath("data"), True),
         (os.getcwd(), False),
         *((d, True) for d in ret.dir_list),
     ]
-    if len(ret.file_list) > 1:
-        for x in ret.file_list[1:]:
-            error(f"冗余参数 {x}")
     try:
         main(prog, data, ret)
     except KeyboardInterrupt:
