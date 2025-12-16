@@ -8,24 +8,15 @@ import threading
 
 from . import userconf
 from .color import *
-from .constants import RLIM_INFINITY
+from .constants import RLIM_INFINITY, BOX_MASK, BOX_EXIT, BOX_SIG, BOX_TLE, BOX_MLE, BOX_OLE, BOX_FBD
 from .core import DEBUG_SANDBOX, acquire_cpu, release_cpu, error, warning
 from .ds import Program, Limit, Verdict
 from .kernel import *
+from .macros import SYSCALL_DICT
 from .utils import fmemory, stdopen
 
 SANDBOX = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin", "sandbox")
-SANDBOX_TINY = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin", "sandbox-tiny")
-
-# sandbox.h 中定义的常量
-EXIT = 0x10000
-SIG = 0x20000
-TLE = 0x40000
-MLE = 0x80000
-OLE = 0x100000
-FBD = 0x200000
-
-TLE_OVERDUE = 1
+SANDTINY = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin", "sandbox-tiny")
 
 class SandboxFatalError(selfEvalFatalError):
     pass
@@ -51,7 +42,7 @@ def relay(src: int, dst: int, side: int):
                 if side:
                     sys.stdout.write(Tianyi(s).toansi())
                 else:
-                    sys.stdout.write(Gold(s).toansi())
+                    sys.stdout.write(Green(s).toansi())
                 sys.stdout.flush()
             try:
                 os.write(dst, data)
@@ -62,8 +53,8 @@ def relay(src: int, dst: int, side: int):
     _cnt[side] = cnt
 
 class Sandbox():
-    __slots__ = ("prog", "args", "limit", "cwd", "env", "stdin", "stdout", "stderr", "permissions", "isolate", "cpu", "trust", "_child_safe", "proc", "ret")
-    def __init__(self, prog: str, args: list[str], limit: Limit = None, cwd: str = None, env: os._Environ = None, stdin = None, stdout = None, stderr = None, permissions: list[tuple[str, int]] = None, isolate = False, trust = False):
+    __slots__ = ("prog", "args", "limit", "cwd", "env", "stdin", "stdout", "stderr", "permissions", "isolate", "cpu", "trust", "token", "_child_safe", "proc", "ret")
+    def __init__(self, prog: str, args: list[str], limit: Limit = None, cwd: str = None, env: os._Environ = None, stdin = None, stdout = None, stderr = None, permissions: list[tuple[str, int]] = None, isolate = False, trust = False, token: int = 0):
         if os.path.isabs(prog):
             self.prog = prog
         elif (s := shutil.which(prog)) is not None:
@@ -81,6 +72,7 @@ class Sandbox():
         self.isolate = isolate
         self.cpu = None
         self.trust = trust
+        self.token = hex(token)[2:]
         self._child_safe = True
     def __enter__(self):
         return self
@@ -109,10 +101,10 @@ class Sandbox():
             signal.signal(signal.SIGINT, ori)
     def start(self):
         if self.trust:
-            sandbox = SANDBOX_TINY
+            sandbox = SANDTINY
         else:
             sandbox = SANDBOX
-        fd, self.ret = tempfile.mkstemp(prefix="sandbox_result_", dir=self.cwd)
+        fd, self.ret = tempfile.mkstemp(prefix="sandresult_", dir=self.cwd)
         os.close(fd)
         limit_cmdline = [str(min(x, RLIM_INFINITY)) for x in self.limit.cmdline()]
         if self.isolate:
@@ -130,7 +122,7 @@ class Sandbox():
             permissions_cmdline.append(str(pm))
         self._child_safe = False
         try:
-            self.proc = subprocess.Popen([sandbox, self.prog, self.ret, *limit_cmdline, cpuset_mask, *permissions_cmdline, *self.args], cwd=self.cwd, env=self.env, stdin=self.stdin, stdout=self.stdout, stderr=self.stderr, start_new_session=True)
+            self.proc = subprocess.Popen([sandbox, self.prog, self.ret, self.token, *limit_cmdline, cpuset_mask, *permissions_cmdline, *self.args], cwd=self.cwd, env=self.env, stdin=self.stdin, stdout=self.stdout, stderr=self.stderr, start_new_session=True)
         except OSError as err:
             raise SandboxFatalError from err
         while True:
@@ -147,51 +139,58 @@ class Sandbox():
         if not self._child_safe:
             self.cont()
         if self.proc.wait():
-            self.ret = Verdict(verdict="fail")
+            self.ret = Verdict(verdict="fail", msg="沙箱运行失败")
             return
         try:
             file = open(self.ret)
         except OSError as err:
             error(err)
-            self.ret = Verdict(verdict="fail")
+            self.ret = Verdict(verdict="fail", msg="无法读取程序运行结果")
             return
-        t = int(file.readline()[:-1])
-        mem = int(file.readline()[:-1])
-        stat = int(file.readline()[:-1])
-        msg = ""
-        if stat & FBD:
-            verdict = "fb"
-            msg = f"syscall {stat ^ FBD}"
-        elif (stat & TLE) or self.limit.tl(t):
-            verdict = "tl"
-        elif (stat & MLE) or self.limit.ml(mem):
-            stat |= MLE
-            verdict = "ml"
-        elif stat & OLE:
-            verdict = "ol"
-        elif stat & SIG:
-            verdict = "re"
-            msg = f"signal {stat ^ SIG}"
-        elif stat & EXIT and stat ^ EXIT:
-            verdict = "re"
-            msg = f"return {stat ^ EXIT}"
-        else:
-            verdict = "ok"
-        i = 0
-        while s := file.readline()[:-1]:
-            i += 1
-            if i >= 3:
-                msg += "\n    "
+        with file:
+            try:
+                t = int(file.readline()[:-1])
+                mem = int(file.readline()[:-1])
+                stat = int(file.readline()[:-1])
+            except ValueError as err:
+                error(err)
+                self.ret = Verdict(verdict="fail", msg="无法读取程序运行结果")
+                return
+            msg = ""
+            if stat & BOX_FBD:
+                verdict = "fb"
+                syscall = stat & BOX_MASK
+                msg = f"syscall {SYSCALL_DICT.get(syscall, syscall)}"
+            elif (stat & BOX_TLE) or self.limit.tl(t):
+                verdict = "tl"
+            elif (stat & BOX_MLE) or self.limit.ml(mem):
+                verdict = "ml"
+            elif stat & BOX_OLE:
+                verdict = "ol"
+            elif stat & BOX_SIG:
+                verdict = "re"
+                msg = f"signal {stat & BOX_MASK}"
+            elif stat & BOX_EXIT and stat & BOX_MASK:
+                verdict = "re"
+                msg = f"return {stat & BOX_MASK}"
             else:
-                msg += "\n  "
-            msg += s
-        file.close()
-        self.ret = Verdict(verdict=verdict, tm=t, mem=mem, stat=stat, msg=msg)
+                verdict = "ok"
+            i = 0
+            while s := file.readline()[:-1]:
+                i += 1
+                if i >= 3:
+                    msg += "\n    "
+                else:
+                    msg += "\n  "
+                msg += s
+            self.ret = Verdict(verdict=verdict, tm=t, mem=mem, stat=stat, msg=msg)
 
 def run(prog: Program, limit: Limit, cwd: str, env: os._Environ = None, stdin = subprocess.DEVNULL, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL, permissions: list[tuple[str, int]] = None, *, trust = False) -> Verdict:
     """
     需要在调用此函数前自行处理权限。
     """
+    if userconf.UserApperance.trust:
+        trust = True
     try:
         with Sandbox(prog.prog, prog.args, limit, cwd, env, stdopen(stdin), stdopen(stdout, "w"), stdopen(stderr, "w"), permissions, userconf.UserJudge.isolate, trust) as box:
             box.start()
@@ -213,7 +212,7 @@ def run_interactive(prog: Program, interactor: Program, limit: Limit, cwd: str, 
     if not isinstance(stdout, str):
         raise ValueError("run_interactive 的 stdout 参数必须是 str 类型。")
     isolate = userconf.UserJudge.isolate
-    if userconf.UserInteractor.fast_sandbox:
+    if userconf.UserInteractor.fast_sandbox or userconf.UserApperance.trust:
         trust_prog = trust_interactor = True
     try:
         if userconf.UserInteractor.echo:

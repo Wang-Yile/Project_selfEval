@@ -33,6 +33,7 @@ sandbox.cpp
 #include <vector>
 
 #include "sandbox.h"
+#include "sandboxlib.h"
 
 namespace fs = std::filesystem;
 
@@ -95,6 +96,16 @@ struct permission_violation {
     fs::path attempt;
     int acc, permitted;
 } *permission_violation;
+static inline permission_node *add_to(const fs::path &path) {
+    permission_node *now = &permission_root;
+    for (auto it = std::next(path.begin()); it != path.end(); ++it) {
+        std::string s = it->string();
+        if (!now->tr.count(s))
+            now->tr[s] = new permission_node;
+        now = now->tr[s];
+    }
+    return now;
+}
 static inline void add_permission(const fs::path &path, int acc) {
     ++acc;
     fs::path p;
@@ -104,16 +115,19 @@ static inline void add_permission(const fs::path &path, int acc) {
         cerr << "add_permission: " << e.what() << endl;
         exit(1);
     }
-    permission_node *now = &permission_root;
-    for (auto it = std::next(p.begin()); it != p.end(); ++it) {
-        std::string s = it->string();
-        if (!now->tr.count(s))
-            now->tr[s] = new permission_node;
-        now = now->tr[s];
-    }
-    now->mp[path.filename()] |= acc;
+    add_to(p)->mp[path.filename()] |= acc;
 }
-static inline bool _is_permitted(const fs::path &path, int acc, bool trace_on_prohibition) {
+static inline void add_softban(const fs::path &path) {
+    fs::path p;
+    try {
+        p = fs::canonical(path.parent_path());
+    } catch (const fs::filesystem_error &e) {
+        cerr << "add_softban: " << e.what() << endl;
+        return;
+    }
+    add_to(p)->mp[path.filename()] |= 4;
+}
+static inline int _is_permitted(const fs::path &path, int acc, bool trace_on_prohibition) {
     ++acc;
     fs::path p;
     try {
@@ -121,7 +135,7 @@ static inline bool _is_permitted(const fs::path &path, int acc, bool trace_on_pr
     } catch (const fs::filesystem_error &e) {
         if (trace_on_prohibition)
             permission_violation = new (struct permission_violation){.attempt = path, .acc = acc, .permitted = 0};
-        return false;
+        return ENOENT << 2;
     }
     permission_node *now = &permission_root;
     int permitted = 0;
@@ -129,6 +143,8 @@ static inline bool _is_permitted(const fs::path &path, int acc, bool trace_on_pr
         std::string s = it->string();
         if (now->mp.count(s)) {
             int x = now->mp[s];
+            if (x & 4)
+                return EPERM << 2;
             if ((x & acc) == acc)
                 return true;
             permitted |= x;
@@ -148,7 +164,7 @@ static inline bool _is_permitted(const fs::path &path, int acc, bool trace_on_pr
         permission_violation = new (struct permission_violation){.attempt = path, .acc = acc, .permitted = permitted};
     return false;
 }
-static inline bool is_permitted(const fs::path &path, int acc, bool trace_on_prohibition) {
+static inline int is_permitted(const fs::path &path, int acc, bool trace_on_prohibition) {
     if (path.is_relative()) {
         auto s = path.filename().string();
         if (s.starts_with("pipe:") || s.starts_with("socket:"))
@@ -159,20 +175,31 @@ static inline bool is_permitted(const fs::path &path, int acc, bool trace_on_pro
         //     return true;
         return false;
     }
+    if (path.begin() == path.end())
+        return false;
+    auto it = std::next(path.begin());
+    if (it == path.end())
+        return false;
+    if (std::next(it) != path.end()) {
+        if (*it == "proc" && (*std::next(it) == "self" || *std::next(it) == "thread-self"))
+            return acc == -1 || acc == 0;
+        else if (*it == "dev" && *std::next(it) == "fd")
+            return true;
+    }
     return _is_permitted(path, acc, trace_on_prohibition);
 }
-static inline bool check_fd_operation(int fd, int acc, bool trace_on_prohibition = true) {
+static inline int check_fd_operation(int fd, int acc, bool trace_on_prohibition = true) {
     try {
         return is_permitted(fs::read_symlink(child_dirfd_path / std::to_string(fd)), acc, trace_on_prohibition);
     } catch (const fs::filesystem_error &e) {
         cerr << "check_fd_operation: " << e.what() << endl;
-        return false;
+        return ENONET << 2;
     }
 }
-static inline bool check_file_operation(long addr, int acc, bool trace_on_prohibition = true) {
+static inline int check_file_operation(long addr, int acc, bool trace_on_prohibition = true) {
     return is_permitted(fs::absolute(fs::path(read_string(addr)).lexically_normal()), acc, trace_on_prohibition);
 }
-static inline bool check_file_operation_at(int dirfd, long addr, int acc, bool trace_on_prohibition = true) {
+static inline int check_file_operation_at(int dirfd, long addr, int acc, bool trace_on_prohibition = true) {
     fs::path path = read_string(addr);
     if (path.is_absolute())
         return is_permitted(path, acc, trace_on_prohibition);
@@ -182,14 +209,21 @@ static inline bool check_file_operation_at(int dirfd, long addr, int acc, bool t
         return is_permitted(fs::absolute(fs::read_symlink(child_dirfd_path / std::to_string(dirfd)) / path), acc, trace_on_prohibition);
     } catch (const fs::filesystem_error &e) {
         cerr << "check_file_operation:" << e.what() << endl;
-        return false;
+        return ENOENT << 2;
     }
 }
-static inline bool check_ioctl(int fd, unsigned long request) {
+static inline int check_ioctl(int fd, unsigned long request) {
     // 只允许访问终端或被授权的文件
     if (check_fd_operation(fd, -1, false))
         return true;
     return _IOC_DIR(request) == _IOC_NONE || _IOC_DIR(request) == _IOC_READ;
+}
+
+token_t auth_token;
+static inline bool check_auth(token_t token) {
+    if (!auth_token)
+        return false;
+    return auth_token == token;
 }
 
 #define BPF_ALLOW(x)                                \
@@ -293,12 +327,36 @@ static inline int recv_fd(int socket) {
 }
 
 bool child_execved;
-static inline bool handle_syscall(int syscall, unsigned long long args[]) {
+bool grader_login;
+token_shot_t grader_shot;
+static inline int handle_syscall(int syscall, unsigned long long args[]) {
+    if (grader_login) {
+        if (grader_shot == 1)
+            grader_login = false;
+        else if (grader_shot > 1)
+            --grader_shot;
+        return true;
+    }
     switch (syscall) {
-    case SYS_open:
-        return check_file_operation(args[1], args[2] & O_ACCMODE);
-    case SYS_openat:
+    case SYS_open: {
+        if ((args[1] & O_CREAT) && (args[2] & 0400) == 0)
+            return 2; // O_TMPFILE 也需要 mode 参数，但是由于没有开放 link 系统调用，不检查 O_TMPFILE
+        return check_file_operation(args[0], args[1] & O_ACCMODE);
+    }
+    case SYS_openat: {
+        if ((args[2] & O_CREAT) && (args[3] & 0400) == 0)
+            return 2;
         return check_file_operation_at((int)args[0], args[1], args[2] & O_ACCMODE);
+    }
+    case SYS_creat: {
+        if ((args[1] & 0400) == 0)
+            return 2;
+        return check_file_operation(args[0], -1);
+    }
+    case SYS_readlink:
+        return check_file_operation(args[0], -1);
+    case SYS_readlinkat:
+        return check_file_operation_at((int)args[0], args[1], -1);
     case SYS_ioctl:
         return check_ioctl((int)args[0], args[1]);
     // 文件系统操作
@@ -344,6 +402,7 @@ static inline bool handle_syscall(int syscall, unsigned long long args[]) {
     // 系统
     case SYS_set_tid_address:
     case SYS_set_robust_list:
+    case SYS_uname:
     case SYS_rseq:
     case SYS_futex:
     // 随机
@@ -355,6 +414,26 @@ static inline bool handle_syscall(int syscall, unsigned long long args[]) {
         if (child_execved)
             return false;
         child_execved = true;
+        return true;
+    }
+    // 沙箱 Auth
+    // 实验性内容
+    case SYS_auth_login: {
+        if (!check_auth((token_t)args[0]))
+            return false;
+        grader_login = true;
+        grader_shot = 0;
+        return true;
+    }
+    case SYS_auth_logout: {
+        grader_login = false;
+        return true;
+    }
+    case SYS_auth_shot: {
+        if (!check_auth((token_t)args[0]))
+            return false;
+        grader_login = true;
+        grader_shot = (token_shot_t)args[1];
         return true;
     }
     default: {
@@ -389,7 +468,7 @@ static inline int tracer(int listener_fd, int signal_fd, int timer_fd) {
             ssize_t s = read(timer_fd, &val, sizeof(val));
             if (s == sizeof(val)) {
                 kill(child_pid, SIGKILL);
-                ret = TLE | TLE_OVERDUE;
+                ret = BOX_TLE | BOX_TLE_OVERDUE;
                 break;
             } else
                 perror("tracer.timerfd");
@@ -416,18 +495,21 @@ static inline int tracer(int listener_fd, int signal_fd, int timer_fd) {
                 break;
             }
             resp->id = notif->id;
-            if (handle_syscall(notif->data.nr, notif->data.args)) {
+            if (int code = handle_syscall(notif->data.nr, notif->data.args); code == 1) {
                 resp->flags = SECCOMP_USER_NOTIF_FLAG_CONTINUE;
                 resp->val = 0;
                 resp->error = 0;
-            } else {
-                // 软拦截
-                // resp->flags = 0;
-                // resp->val = -1;
-                // resp->error = -EPERM;
-                // 硬拦截
+            } else if (code == 2) { // 软拦截 - EPERM
+                resp->flags = 0;
+                resp->val = -1;
+                resp->error = -EPERM;
+            } else if (code >>= 2; code && code != ENOENT) { // 软拦截
+                resp->flags = 0;
+                resp->val = -1;
+                resp->error = -code;
+            } else { // 硬拦截
                 kill(child_pid, SIGKILL);
-                ret = FBD | notif->data.nr;
+                ret = BOX_FBD | notif->data.nr;
                 break;
             }
             if (ioctl(listener_fd, SECCOMP_IOCTL_NOTIF_SEND, resp) < 0) {
@@ -449,13 +531,15 @@ int main(int argc, char *argv[]) {
     prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
     char *prog_path = argv[1];
     char *output = argv[2];
-    time_limit = atol(argv[3]);
-    mem_limit = atol(argv[4]);
-    stack_limit = atol(argv[5]);
-    fsize_limit = atol(argv[6]);
-    // argv[7] 是 cpuset 的二进制掩码
-    int file_cnt = atoi(argv[8]);
-    int args_st = 9 + (file_cnt << 1);
+    for (int i = 0; argv[3][i]; ++i)
+        auth_token = (auth_token << 4) | (argv[3][i] > '9' ? argv[3][i] - 86 : argv[3][i] - 48);
+    time_limit = atol(argv[4]);
+    mem_limit = atol(argv[5]);
+    stack_limit = atol(argv[6]);
+    fsize_limit = atol(argv[7]);
+    // argv[8] 是 cpuset 的二进制掩码
+    int file_cnt = atoi(argv[9]);
+    int args_st = 10 + (file_cnt << 1);
     int socket_pair[2];
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, socket_pair) == -1) {
         perror("socketpair");
@@ -474,8 +558,8 @@ int main(int argc, char *argv[]) {
         args[argc - args_st + 1] = nullptr;
         cpu_set_t mask;
         CPU_ZERO(&mask);
-        for (int i = 0; argv[7][i]; ++i)
-            if (argv[7][i] == '1')
+        for (int i = 0; argv[8][i]; ++i)
+            if (argv[8][i] == '1')
                 CPU_SET(i, &mask);
         sched_setaffinity(pid, sizeof(mask), &mask);
         apply_rlimit();
@@ -508,22 +592,21 @@ int main(int argc, char *argv[]) {
         child_pid = pid;
         pid = getpid();
         close(socket_pair[1]);
-        add_permission("/etc/ld.so.preload", 0);
+        add_softban("/etc/ld.so.preload");
         add_permission("/etc/ld.so.cache", 0);
         add_permission("/lib", 0);
         add_permission("/usr/lib", 0);
         add_permission("/dev/random", 0);
         add_permission("/dev/urandom", 0);
-        add_permission("/dev/null", 0);
+        add_permission("/dev/null", 2);
+        add_permission("/dev/stdin", 0);
+        add_permission("/dev/stdout", 1);
+        add_permission("/dev/stderr", 1);
         add_permission("/etc/localtime", 0);
         if (char *p = ttyname(stdin->_fileno); p != nullptr)
             add_permission(p, 0);
-        if (char *p = ttyname(stdout->_fileno); p != nullptr)
-            add_permission(p, 1);
-        if (char *p = ttyname(stderr->_fileno); p != nullptr)
-            add_permission(p, 1);
         for (int i = 0; i < file_cnt; ++i)
-            add_permission(fs::path(argv[9 + (i << 1)]).lexically_normal(), atoi(argv[9 + (i << 1 | 1)]));
+            add_permission(fs::path(argv[10 + (i << 1)]).lexically_normal(), atoi(argv[10 + (i << 1 | 1)]));
         child_dirfd_path = fs::path("/proc/" + std::to_string(child_pid) + "/fd/");
         wait4(child_pid, &status, WUNTRACED, &usage);
         start_time = trans(usage);
@@ -552,15 +635,15 @@ int main(int argc, char *argv[]) {
         if (wait4(child_pid, &status, WUNTRACED, &usage) == child_pid) {
             if (!ret) {
                 if (WIFEXITED(status))
-                    ret = EXIT | WEXITSTATUS(status);
+                    ret = BOX_EXIT | WEXITSTATUS(status);
                 else if (WIFSIGNALED(status)) {
                     int sig = WTERMSIG(status);
                     if (sig == SIGXCPU || sig == SIGPROF)
-                        ret = TLE;
+                        ret = BOX_TLE;
                     else if (sig == SIGXFSZ)
-                        ret = OLE;
+                        ret = BOX_OLE;
                     else
-                        ret = SIG | WTERMSIG(status);
+                        ret = BOX_SIG | WTERMSIG(status);
                 } else
                     ret = -1;
             }
@@ -569,8 +652,8 @@ int main(int argc, char *argv[]) {
             ret = -1;
         }
         time_t t = trans(usage) - start_time;
-        if (!(ret & TLE) && t >= time_limit)
-            ret = TLE;
+        if (!(ret & BOX_TLE) && t >= time_limit)
+            ret = BOX_TLE;
         close(listener_fd);
         close(signal_fd);
         close(timer_fd);
@@ -585,7 +668,7 @@ int main(int argc, char *argv[]) {
             out << "not permitted";
             switch (permission_violation->acc) {
             case 0: {
-                out << "[visit]";
+                out << "[visit] ";
                 break;
             }
             case 1: {

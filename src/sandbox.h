@@ -4,15 +4,15 @@ sandbox.h
 sandbox 和 sandbox-tiny 共用的宏定义、函数和全局变量。
 */
 
-#define INFO_MASK 0xffff
-#define EXIT 0x10000
-#define SIG 0x20000
-#define TLE 0x40000
-#define MLE 0x80000
-#define OLE 0x100000
-#define FBD 0x200000
+#define BOX_MASK 0xffff
+#define BOX_EXIT 0x10000
+#define BOX_SIG 0x20000
+#define BOX_TLE 0x40000
+#define BOX_MLE 0x80000
+#define BOX_OLE 0x100000
+#define BOX_FBD 0x200000
 
-#define TLE_OVERDUE 1
+#define BOX_TLE_OVERDUE 1
 
 #define TIMER_REDUNDANCY 1000 * 1000
 #ifdef WSL

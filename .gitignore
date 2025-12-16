@@ -8,10 +8,10 @@
 /**/__pycache__
 
 /lib/constants.py
+/lib/macros.py
 /selfeval.code-workspace
 /Project_selfEval.code-workspace
 /1.*
-/testlib.h
 /auto.py
 
 *copy.py

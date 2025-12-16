@@ -1,7 +1,7 @@
 # selfeval
 
 > version 1.5.0  
-> 内部版本 rev26  
+> 内部版本 rev27  
 > Copyright (C) 2025 [Yile Wang](mailto:bluewindde@163.com)  
 > 使用 [GNU 通用公共许可证，第三版以上](https://www.gnu.org/licenses/gpl-3.0.html) 发布，不含任何担保。  
 
@@ -93,6 +93,7 @@ sudo apt install libcap-dev
 - compiler：指定编译器，默认为 g++。你可能需要修改它为你使用的编译器。如果你使用非 GCC 的编译器，请自行研究。
 - args：指定默认 C++ 编译选项。如果在 WSL 中编译，脚本将自动添加 `-DWSL` 宏，沙箱将针对 WSL 进行修改。
 - setcap：控制是否设置能力，设置能力需要管理员权限，默认为是。如果不希望设置能力，请从命令行传入参数 `--no-cap`。
+- clean：控制构建完成后是否删除 build 目录，默认为否。如果不希望删除 build 目录，请从命令行传入参数 `--keep-build`。
 
 脚本将生成如下中间结果：
 
@@ -101,17 +102,18 @@ sudo apt install libcap-dev
 
 脚本将制作如下项目：
 
-- 主沙箱：根据 src/sandbox.cpp 编译 bin/sandbox。
-- 简化版沙箱：根据 src/sandbox-tiny.cpp 编译 bin/sandbox-tiny。
-- 系统常量模块：根据 src/gen.cpp 编译 build/gen，然后从 build/gen 获取 lib/constants.py
+- 主沙箱：根据 src/sandbox.cpp 编译出 bin/sandbox。
+- 简化版沙箱：根据 src/sandbox-tiny.cpp 编译出 bin/sandbox-tiny。
+- 常量模块：根据 src/constants.cpp 编译出 build/constants，然后运行它以获取 lib/constants.py。
+- 宏定义模块：根据 src/macros.cpp，通过 `g++ -E -dM` 选项编译出 build/macros，获取已定义的全部系统调用，存储到 lib/macros.py。
 
-执行如下命令即可编译沙箱，你可能需要输入密码以设置可执行文件能力：
+执行如下命令即可编译沙箱，你可能需要输入密码以设置可执行文件能力（不要以 sudo 运行！）：
 
 ```sh
 python3 build.py
 ```
 
-编译完成后，脚本会自动删除 build 目录。
+如果没有发生错误或被选项抑制，构建完成后，脚本会自动删除 build 目录。
 
 **注意：本程序的沙箱被设计为在非特权环境下工作。建议以普通用户权限运行，避免使用 root。**
 
@@ -153,14 +155,16 @@ python3 build.py
     fi
     ```
 
+通过 `install.sh` 脚本自动安装时，默认将别名放在 `~/.selfeval.sh` 中。
+
 ## 测试环境
 
 本项目在如下环境进行过测试：
 
 | 设备名称 | 内部版本 | OS | Linux | Python | GCC |
 | :-: | :-: | :-: | :-: | :-: | :-: |
-| NOILinux 物理机 | rev26 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.7 | 9.4.0 |
-| NOILinux + gcc 13 物理机 | rev26 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.7 | 13.1.0 |
+| NOILinux 物理机 | rev27 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.9 | 9.4.0 |
+| NOILinux + gcc 13 物理机 | rev27 | Ubuntu 20.04.6 | 5.15.0-139-generic | 3.13.9 | 13.1.0 |
 | Ubuntu 24 虚拟机 | rev25 | VMWare Workstation 17.6.4 <br> Ubuntu 24.04.3 | 6.14.0-36-generic | 3.12.3 | 13.3.0 |
 | WSL2 | rev26 | Windows 11 25H2 (26200.7171) <br> Ubuntu 24.04 | 5.15.167.4-microsoft-standard-WSL2 | 3.12.3 | 13.3.0 |
 
@@ -169,6 +173,12 @@ python3 build.py
 咕咕咕……
 
 docs 文件夹下可以看到已经完成的部分。
+
+## 第三方依赖
+
+- **testlib.h**: MIT 许可证 © Mike Mirzayanov  
+  位于 `third_party/testlib/`  
+  仓库：<https://github.com/MikeMirzayanov/testlib>
 
 ## 问题反馈
 

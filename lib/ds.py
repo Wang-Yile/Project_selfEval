@@ -234,6 +234,12 @@ class Model():
             if (val := self.get(key)) is not ModelNULL and isinstance(val, Model):
                 val.enable_record_invalid()
     @classmethod
+    def _allkeys(cls):
+        """
+        获取所有合法的键。
+        """
+        return cls.__annotations__.keys()
+    @classmethod
     def from_dict(cls, dic: dict[str, Any], /, record_extra = False, record_invalid = False, strict = True, prohibit: set[str] = None):
         ret = cls()
         if record_extra:

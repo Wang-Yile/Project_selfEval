@@ -3,24 +3,18 @@
 set -e
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-sudo apt update
-sudo apt install libseccomp-dev -y
-sudo apt install libcap-dev -y
+if ! [ -d .venv ]; then
+    ${PY:-python3} -m venv .venv
+    .venv/bin/pip3 install -r requirements.txt -i https://mirror.tuna.tsinghua.edu.cn/pypi/web/simple
+fi
 
-${PY:-python3} -m venv .venv
-source .venv/bin/activate
-
-pip3 install -r requirements.txt -i https://mirror.tuna.tsinghua.edu.cn/pypi/web/simple
-
-python3 build.py
+if ! [ -d bin ]; then
+    sudo apt update
+    sudo apt install libseccomp-dev -y
+    sudo apt install libcap-dev -y
+    .venv/bin/python3 build.py
+fi
 
 chmod +x run.sh
 
-if [ -f ~/.bash_aliases ]; then
-    cp ~/.bash_aliases ~/.bash_aliases.bak
-    echo "原 ~/.bash_aliases 已备份到 ~/.bash_aliases.bak"
-fi
-echo "alias selfeval=\"$(pwd)/run.sh\"" >> ~/.bash_aliases
-if [ -f ~/.bashrc ]; then
-    source ~/.bashrc
-fi
+.venv/bin/python3 src/install.py

@@ -1,9 +1,12 @@
+import os
+
 from .ds import Model
 
 class _UserApperanceConf(Model):
     remind: bool = True
     conclusion: bool = True
     exmsg: bool = True
+    trust: bool = False
     lang: str = "c++14:O2"
 UserApperance = _UserApperanceConf()
 
@@ -13,8 +16,7 @@ class _UserWarnConf(Model):
 UserWarn = _UserWarnConf()
 
 class _UserJudgeConf(Model):
-    # testlib: str = "/home/noilinux/selfeval/testlib.h"
-    testlib: str
+    testlib: str = os.path.join(os.path.dirname(__file__), "..", "third_party", "testlib", "testlib.h")
     isolate: bool = True
     stderr: bool = False
 UserJudge = _UserJudgeConf()

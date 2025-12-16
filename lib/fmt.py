@@ -36,9 +36,9 @@ class LiveStream():
         if ret.verdict == "ig":
             print(" " * 25, end=" ")
         else:
-            from .sandbox import TLE, MLE
-            print(((">" if ret.stat & TLE else "") + ftime(ret.tm)).rjust(12), end=" ")
-            print(((">" if ret.stat & MLE else "") + fmemory(ret.mem)).rjust(12), end=" ")
+            from .sandbox import BOX_TLE
+            print(((">" if ret.stat & BOX_TLE else "") + ftime(ret.tm)).rjust(12), end=" ")
+            print(((">" if ret.verdict == "ml" else "") + fmemory(ret.mem)).rjust(12), end=" ")
         if ret.verdict == "pt":
             print(fmt_score(ret.score).toansi(), end=" ")
         print(fmt_verdict(ret.verdict).toansi(), end="")

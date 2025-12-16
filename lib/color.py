@@ -8,7 +8,7 @@ __all__ = [
     "RED", "GREEN", "YELLOW", "BLUE", "MAGENTA", "PURPLE", "CYAN",
     "WHITE", "BLACK", "GRAY", "ORANGE", "PINK", "BROWN", "VIOLET",
     "GOLD", "SILVER", "LIME", "NAVY", "SKYBLUE", "TIANYI",
-    "BOLD", "ITALIC",
+    "BOLD", "DIM", "ITALIC",
 ]
 
 import io
@@ -91,6 +91,11 @@ class Bold(Style):
     def __init__(self):
         super().__init__()
         self.ansi = "1"
+        self.ansi_rev = "22"
+class Dim(Style):
+    def __init__(self):
+        super().__init__()
+        self.ansi = "2"
         self.ansi_rev = "22"
 class Italic(Style):
     def __init__(self):
@@ -338,6 +343,7 @@ _navy = Color("navy")
 _skyblue = Color("skyblue")
 _tianyi = Color("tianyi")
 _bold = Bold()
+_dim = Dim()
 _italic = Italic()
 
 def Red(s: Text | str) -> Text: return s * _red
@@ -385,6 +391,7 @@ def TIANYI(s: Text | str) -> Text: return s * _tianyi * _bold
 def MARK(s: Text | str, color: str) -> Text: return s * Color(color) * _bold
 
 def BOLD(s: Text | str) -> Text: return s  * _bold
+def DIM(s: Text | str) -> Text: return s  * _dim
 def ITALIC(s: Text | str) -> Text: return s  * _italic
 
 def plen(s: Text | str) -> Text:

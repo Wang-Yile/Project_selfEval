@@ -18,29 +18,29 @@ static inline int tracer() {
             continue;
         if (trans(usage) - start_time > time_limit) {
             kill(child_pid, SIGKILL);
-            return TLE;
+            return BOX_TLE;
         }
         if ((usage.ru_maxrss << 10) > mem_limit) {
             kill(child_pid, SIGKILL);
-            return MLE;
+            return BOX_MLE;
         }
         if (WIFEXITED(status))
-            return EXIT | WEXITSTATUS(status);
+            return BOX_EXIT | WEXITSTATUS(status);
         if (WIFSIGNALED(status))
-            return SIG | WTERMSIG(status);
+            return BOX_SIG | WTERMSIG(status);
         if (WIFSTOPPED(status)) {
             int sig = WSTOPSIG(status);
             // cerr << "sig " << sig << endl;
             if (sig == SIGXFSZ)
-                return OLE;
+                return BOX_OLE;
             else if (sig == SIGXCPU)
-                return TLE;
+                return BOX_TLE;
             else if (sig == SIGCONT)
                 ;
             else if (WIFSIGNALED(sig))
-                return SIG | WTERMSIG(sig);
+                return BOX_SIG | WTERMSIG(sig);
             else if (WIFEXITED(sig))
-                return EXIT | WEXITSTATUS(sig);
+                return BOX_EXIT | WEXITSTATUS(sig);
         }
     }
 }
@@ -51,13 +51,14 @@ int main(int argc, char *argv[]) {
     pid = fork();
     char *prog_path = argv[1];
     char *output = argv[2];
-    time_limit = atol(argv[3]);
-    mem_limit = atol(argv[4]);
-    stack_limit = atol(argv[5]);
-    fsize_limit = atol(argv[6]);
-    // argv[7] 是 cpuset 的二进制掩码
-    int file_cnt = atoi(argv[8]);
-    int args_st = 9 + (file_cnt << 1);
+    // argv[3] 是 auth_token
+    time_limit = atol(argv[4]);
+    mem_limit = atol(argv[5]);
+    stack_limit = atol(argv[6]);
+    fsize_limit = atol(argv[7]);
+    // argv[8] 是 cpuset 的二进制掩码
+    int file_cnt = atoi(argv[9]);
+    int args_st = 10 + (file_cnt << 1);
     struct sigaction sa;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
@@ -72,8 +73,8 @@ int main(int argc, char *argv[]) {
         args[argc - args_st + 1] = nullptr;
         cpu_set_t mask;
         CPU_ZERO(&mask);
-        for (int i = 0; argv[7][i]; ++i)
-            if (argv[7][i] == '1')
+        for (int i = 0; argv[8][i]; ++i)
+            if (argv[8][i] == '1')
                 CPU_SET(i, &mask);
         sched_setaffinity(pid, sizeof(mask), &mask);
         kill(pid, SIGSTOP);
@@ -104,7 +105,7 @@ int main(int argc, char *argv[]) {
         setitimer(ITIMER_REAL, &it, nullptr);
         int ret = tracer();
         if (child_overdue)
-            ret = TLE | TLE_OVERDUE;
+            ret = BOX_TLE | BOX_TLE_OVERDUE;
         std::ofstream out(output, std::ios::out);
         out << trans(usage) - start_time << '\n';
         out << (usage.ru_maxrss << 10) << '\n';

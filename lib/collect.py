@@ -4,7 +4,7 @@ from itertools import chain, islice
 
 from .core import warning
 from .ds import read_test_conf, JudgeConf, Test
-from .utils import is_xok, path_cmp2
+from .utils import is_xok, is_file, is_dir, path_cmp2
 
 _checkers = []
 _interactors = []
@@ -61,6 +61,9 @@ def find_testcase(path: str, strict = False):
     else:
         return (path, ansfile)
 def process_file(path: str, strict = False, testcase = True):
+    path = os.path.realpath(path)
+    if not os.path.isfile(path):
+        return
     name = os.path.basename(path)
     base, ext = os.path.splitext(name)
     if base in ("checker", "chk"):
@@ -79,17 +82,17 @@ def collect_test(src: str, strict = False):
         return None
     ret.sort(key=path_cmp2(lambda x: x[0]))
     t = Test(tests=ret)
-    if os.path.isfile(path := os.path.join(src, "config.json")):
+    if is_file(path := os.path.join(src, "config.json")):
         t.conf = read_test_conf(path)
     return t
 def collect_tests(src: str, strict = False):
     ret: list[Test] = []
     for name in os.listdir(src):
-        path = os.path.join(src, name)
+        path = os.path.realpath(os.path.join(src, name))
         if os.path.isdir(path):
             if tc := collect_test(path, strict):
                 ret.append(tc)
-        elif tc := process_file(path):
+        elif os.path.isfile(path) and (tc := process_file(path)):
             ret.append(Test(tests=[tc]))
     return ret, read_test_conf(path) if os.path.isfile(path := os.path.join(src, "config.json")) else None
 __collected_problem = None

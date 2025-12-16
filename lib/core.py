@@ -1,15 +1,19 @@
 VERSION = "1.5.0"
-BUILD = "rev26"
+BUILD = "rev27"
 
 import atexit
 import fcntl
 import os
 import sys
 import time
+import traceback
 
 from .color import *
 
 _CACHE_DISABLED = False
+def enable_cache():
+    global _CACHE_DISABLED
+    _CACHE_DISABLED = False
 def disable_cache():
     global _CACHE_DISABLED
     _CACHE_DISABLED = True
@@ -21,12 +25,28 @@ DEBUG_DS = False
 DEBUG_SANDBOX = False
 DEBUG_EXC = False
 
-# TODO 优化异常打印，支持 DEBUG_EXC 打印调用栈
+# TODO 重构
 # 打印异常
 REMIND_MAX = 100
 _rmd: list[Text] = []
 def _fexc(err: Exception, *, _prompt = "") -> Text:
-    ret = MAGENTA(err.__class__.__qualname__) + " " + _prompt + str(err)
+    ret = ""
+    if DEBUG_EXC:
+        for tb in traceback.extract_tb(err.__traceback__):
+            ret += "  File <" + Magenta(f"{tb.filename}:{tb.lineno}:{tb.colno}") + "> In `" + Blue(tb.name) + "`:\n"
+            try:
+                with open(tb.filename) as file:
+                    for i in range(tb.lineno):
+                        line = file.readline()
+                    if tb.lineno == tb.end_lineno:
+                        ret += "    " + line[:tb.colno].lstrip() + Red(ITALIC(line[tb.colno:tb.end_colno])) + line[tb.end_colno:]
+                    else:
+                        ret += "    " + line.lstrip()
+                        for j in range(tb.end_lineno - tb.lineno):
+                            ret += "    " + file.readline().lstrip()
+            except OSError:
+                ret += "[无法显示代码]\n"
+    ret += MAGENTA(err.__class__.__qualname__) + " " + _prompt + str(err)
     if hasattr(err, "__notes__"):
         for x in err.__notes__:
             ret += "\n" + x
