@@ -402,7 +402,7 @@ class JudgeConf(Model):
     graders: list[str] = []
     headers: list[str] = []
     additional: list[str] = []
-    retry: int = 0
+    retry: int = 1
 def _read_conf(path: str, /):
     with stdopen(path) as file:
         try:
