@@ -1,6 +1,5 @@
 import copy
 import decimal
-import json
 import os
 from types import GenericAlias, UnionType
 from typing import Any, Callable, TypeVar
@@ -408,7 +407,7 @@ def _read_conf(path: str, /):
     with stdopen(path) as file:
         try:
             data = json5.load(file)
-        except json.JSONDecodeError as err:
+        except ValueError as err:
             err.add_note(f"测试点配置文件 {repr(path)} 无效。")
             error(err, True)
             return
