@@ -49,13 +49,13 @@ from itertools import islice
 from lib.collect import process_file, collect_tests, collect_problem, collected_problem
 from lib.color import *
 from lib.constants import RLIM_INFINITY
-from lib.core import VERSION, BUILD, DEBUG, enable_cache, disable_cache, cache_disabled, startup_recall, error, fatal, warning, tick, tock
+from lib.core import VERSION, BUILD, DEBUG, startup_recall, error, fatal, warning, tick, tock
 from lib.ds import Model, TestConf, JudgeConf, read_judge_conf, Verdict, Test
 from lib.fmt import LiveStream
 from lib.jury import compile_program, jury_test
 from lib.sandbox import SandboxFatalError
 from lib.userconf import UserApperance, UserWarn, UserJudge, UserInteractor
-from lib.utils import fmemory, is_xok, path_cmp2, cache_clear
+from lib.utils import fmemory, is_xok, path_cmp2, enable_cache, disable_cache, cache_disabled, cache_clear
 
 # cache_path = os.path.abspath(".eval")
 cache_path = tempfile.mkdtemp(prefix="selfeval-main-cache-")
@@ -101,13 +101,13 @@ def create_parser():
     group.add_argument("-m", "--memory", type=str, metavar="N")
     group.add_argument("--fsize", type=str, metavar="N")
     group = parser.add_argument_group("警告选项")
-    for x in list(UserWarn._allkeys()):
+    for x in UserWarn.__class__.__annotations__.keys():
         gp = group.add_mutually_exclusive_group()
         ok = getattr(UserWarn, x)
         gp.add_argument(f"-W,{x}", default=ok, action="store_true")
         gp.add_argument(f"-w,{x}", default=not ok, action="store_true", help=argparse.SUPPRESS)
     group = parser.add_argument_group("交互选项")
-    for x in list(UserInteractor._allkeys()):
+    for x in UserInteractor.__class__.__annotations__.keys():
         gp = group.add_mutually_exclusive_group()
         ok = getattr(UserInteractor, x)
         gp.add_argument(f"-Wi,{x}", default=ok, action="store_true")
@@ -187,7 +187,7 @@ def main(source: str, data: list[str], argv: Arguments):
 def print_header():
     print(BOLD("selfeval").toansi(), VERSION)
 def help_version():
-    print(BOLD("selfeval").toansi(), VERSION, f"({BUILD})")
+    print(BOLD("selfeval").toansi(), VERSION, f"(build {BUILD})")
     print("Copyright (C) 2025 Yile Wang")
     print("本程序是自由软件，不含任何担保。")
     print("详情见 GNU 通用公共许可证，第三版以上：")
