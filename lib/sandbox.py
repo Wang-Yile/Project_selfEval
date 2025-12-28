@@ -64,7 +64,7 @@ class Sandbox():
         self.args = args
         self.limit = Limit() if limit is None else limit
         self.cwd = cwd
-        self.env = env # TODO 安全的 env
+        self.env = {} if env is None and not trust else env
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = None if DEBUG_SANDBOX else stderr
@@ -124,6 +124,7 @@ class Sandbox():
         try:
             self.proc = subprocess.Popen([sandbox, self.prog, self.ret, self.token, *limit_cmdline, cpuset_mask, *permissions_cmdline, *self.args], cwd=self.cwd, env=self.env, stdin=self.stdin, stdout=self.stdout, stderr=self.stderr, start_new_session=True)
         except OSError as err:
+            self._child_safe = True
             raise SandboxFatalError from err
         while True:
             _, stat = os.waitpid(self.proc.pid, os.WUNTRACED)
