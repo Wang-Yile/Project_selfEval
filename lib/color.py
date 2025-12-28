@@ -8,7 +8,7 @@ __all__ = [
     "RED", "GREEN", "YELLOW", "BLUE", "MAGENTA", "PURPLE", "CYAN",
     "WHITE", "BLACK", "GRAY", "ORANGE", "PINK", "BROWN", "VIOLET",
     "GOLD", "SILVER", "LIME", "NAVY", "SKYBLUE", "TIANYI",
-    "BOLD", "DIM", "ITALIC",
+    "BOLD", "DIM", "ITALIC", "NOCOLOR",
 ]
 
 import io
@@ -55,7 +55,7 @@ class Style:
     __slots__ = ("ansi", "ansi_rev")
     def __init__(self):
         self.ansi = ""
-        self.ansi_rev = ""
+        self.ansi_rev: str | None = None
     def __init_subclass__(cls):
         cls.__slots__ += ("ansi", "ansi_rev")
     def __copy__(self):
@@ -223,6 +223,10 @@ class Color(Style):
         super().__init__()
         self.ansi = _ansi_colors[c]
         self.ansi_rev = "39"
+class NoColor(Style):
+    def __init__(self):
+        super().__init__()
+        self.ansi = "39"
 class RGB(Style):
     @overload
     def __init__(self, r: int, g: int, b: int, /): ...
@@ -287,7 +291,8 @@ class Text():
         for tag in self.tags:
             for x in tag.style:
                 tags.append((tag.l, x.ansi))
-                tags.append((tag.r+1, x.ansi_rev))
+                if x.ansi_rev is not None:
+                    tags.append((tag.r+1, x.ansi_rev))
         tags.sort(key=lambda x: x[0])
         ret = io.StringIO()
         las = 0
@@ -345,6 +350,7 @@ _tianyi = Color("tianyi")
 _bold = Bold()
 _dim = Dim()
 _italic = Italic()
+_nocolor = NoColor()
 
 def Red(s: Text | str) -> Text: return s * _red
 def Green(s: Text | str) -> Text: return s * _green
@@ -393,6 +399,7 @@ def MARK(s: Text | str, color: str) -> Text: return s * Color(color) * _bold
 def BOLD(s: Text | str) -> Text: return s  * _bold
 def DIM(s: Text | str) -> Text: return s  * _dim
 def ITALIC(s: Text | str) -> Text: return s  * _italic
+def NOCOLOR(s: Text | str) -> Text: return s  * _nocolor
 
 def plen(s: Text | str) -> Text:
     if isinstance(s, str):
